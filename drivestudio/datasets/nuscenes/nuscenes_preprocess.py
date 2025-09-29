@@ -17,6 +17,8 @@ from datasets.tools.multiprocess_utils import track_parallel_progress
 from utils.geometry import get_corners
 from utils.visualization import color_mapper, dump_3d_bbox_on_image
 
+from scipy.spatial import cKDTree
+
 NUSCENES_LABELS = [
     'animal',
     'human.pedestrian.adult',
@@ -614,9 +616,26 @@ class NuScenesProcessor(object):
                 )
                 labels.tofile(lidarseg_save_path)
 
+                # NEW build keyframe label index
+                keyframes_tree, keyframes_lbls = self.build_labeled_index(self.nusc, [token, closest_tokens[frame_idx + self.interpolate_N + 1]])
+
             except KeyError:
                 # No lidarseg available for this sample_data (likely a sweep)
-                print('ERROR: no lidarseg available')
+                
+                labels_for_sweep = self.propagate_labels_to_sweep(self.nusc, token, keyframes_tree, keyframes_lbls, r_max=0.5)
+
+                print('Interpolated labels from keyframes')
+
+                if labels_for_sweep.shape[0] != pc.points.shape[1]:
+                    raise RuntimeError(
+                        f"Lidarseg size mismatch: {labels_for_sweep.shape[0]} labels vs "
+                        f"{pc.points.shape[1]} points in {token}"
+                    )
+
+                lidarseg_save_path = (
+                    f"{self.save_dir}/{str(scene_idx).zfill(3)}/lidarseg/{str(frame_idx).zfill(3)}.bin"
+                )
+                labels_for_sweep.tofile(lidarseg_save_path)
                 pass
 
             # Get ego pose (ego to world)
@@ -634,6 +653,73 @@ class NuScenesProcessor(object):
                 f"{str(frame_idx).zfill(3)}.txt",
                 lidar_to_world
             )
+
+    # NEW
+    def transform_points(self, points_xyz, T_4x4):
+        # points_xyz: (N,3), T: 4x4
+        pts_h = np.c_[points_xyz, np.ones((points_xyz.shape[0], 1))]
+        return (T_4x4 @ pts_h.T).T[:, :3]
+
+    def build_labeled_index(self, nusc, labeled_tokens):
+        all_xyz = []
+        all_lbl = []
+        for tok in labeled_tokens:
+            sd = nusc.get('sample_data', tok)
+            pc = LidarPointCloud.from_file(os.path.join(nusc.dataroot, sd['filename']))
+            # lidar->ego
+            calib = nusc.get('calibrated_sensor', sd['calibrated_sensor_token'])
+            T_le = np.eye(4)
+            T_le[:3,:3] = Quaternion(calib['rotation']).rotation_matrix
+            T_le[:3, 3] = np.array(calib['translation'])
+            # ego->world
+            pose = nusc.get('ego_pose', sd['ego_pose_token'])
+            T_ew = np.eye(4)
+            T_ew[:3,:3] = Quaternion(pose['rotation']).rotation_matrix
+            T_ew[:3, 3] = np.array(pose['translation'])
+            T_lw = T_ew @ T_le
+
+            # points in world
+            xyz_w = self.transform_points(pc.points[:3, :].T, T_lw)
+
+            # labels
+            lidarseg = nusc.get('lidarseg', tok)
+            lbl_path = os.path.join(nusc.dataroot, lidarseg['filename'])
+            lbl = np.fromfile(lbl_path, dtype=np.uint8)
+
+            # (optional) sub-sample to reduce density, e.g., every 2nd point
+            all_xyz.append(xyz_w[::2])
+            all_lbl.append(lbl[::2])
+
+        all_xyz = np.concatenate(all_xyz, axis=0)
+        all_lbl = np.concatenate(all_lbl, axis=0)
+        tree = cKDTree(all_xyz)
+        return tree, all_lbl
+
+    def propagate_labels_to_sweep(self, nusc, sweep_token, tree, all_lbl, r_max=0.5):
+        sd = nusc.get('sample_data', sweep_token)
+        pc = LidarPointCloud.from_file(os.path.join(nusc.dataroot, sd['filename']))
+
+        # lidar->ego
+        calib = nusc.get('calibrated_sensor', sd['calibrated_sensor_token'])
+        T_le = np.eye(4)
+        T_le[:3,:3] = Quaternion(calib['rotation']).rotation_matrix
+        T_le[:3, 3] = np.array(calib['translation'])
+        # ego->world
+        pose = nusc.get('ego_pose', sd['ego_pose_token'])
+        T_ew = np.eye(4)
+        T_ew[:3,:3] = Quaternion(pose['rotation']).rotation_matrix
+        T_ew[:3, 3] = np.array(pose['translation'])
+        T_lw = T_ew @ T_le
+
+        xyz_w = self.transform_points(pc.points[:3, :].T, T_lw)
+
+        # 1-NN with radius cap
+        dists, idxs = tree.query(xyz_w, k=1, workers=-1)
+        prop_labels = np.full(xyz_w.shape[0], 255, dtype=np.uint8)  # 255 = unknown
+        mask = dists <= r_max
+        prop_labels[mask] = all_lbl[idxs[mask]]
+        return prop_labels
+    # ---
 
     def save_dynamic_mask(self, scene_data, scene_idx, class_valid='all'):
         """Parse and save the segmentation data."""
