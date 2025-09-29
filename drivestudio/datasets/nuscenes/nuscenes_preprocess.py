@@ -620,14 +620,12 @@ class NuScenesProcessor(object):
                 try:
                     keyframes_tree, keyframes_lbls = self.build_labeled_index(self.nusc, [token, closest_tokens[frame_idx + self.interpolate_N + 1]])
                 except IndexError:
-                    print('Last keyframe reached')
+                    print(f'Last keyframe reached for scene {str(scene_idx).zfill(3)}')
 
             except KeyError:
                 # No lidarseg available for this sample_data (likely a sweep)
                 
                 labels_for_sweep = self.propagate_labels_to_sweep(self.nusc, token, keyframes_tree, keyframes_lbls, r_max=0.5)
-
-                print('Interpolated labels from keyframes')
 
                 if labels_for_sweep.shape[0] != pc.points.shape[1]:
                     raise RuntimeError(
