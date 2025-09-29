@@ -617,7 +617,10 @@ class NuScenesProcessor(object):
                 labels.tofile(lidarseg_save_path)
 
                 # NEW build keyframe label index
-                keyframes_tree, keyframes_lbls = self.build_labeled_index(self.nusc, [token, closest_tokens[frame_idx + self.interpolate_N + 1]])
+                try:
+                    keyframes_tree, keyframes_lbls = self.build_labeled_index(self.nusc, [token, closest_tokens[frame_idx + self.interpolate_N + 1]])
+                except IndexError:
+                    print('Last keyframe reached')
 
             except KeyError:
                 # No lidarseg available for this sample_data (likely a sweep)
