@@ -361,7 +361,7 @@ class NuScenesLiDARSource(SceneLidarSource):
                 os.path.join(self.data_path, "lidar_pose", f"{t:03d}.txt")
             )
             lidar_seg_filepaths.append(
-                os.path.join(self.data_path, "lidarseg", f"{t:03d}.txt")
+                os.path.join(self.data_path, "lidarseg", f"{t:03d}.bin")
             )
         self.lidar_filepaths = np.array(lidar_filepaths)
         self.lidar_pose_filepaths = np.array(lidar_pose_filepaths)
