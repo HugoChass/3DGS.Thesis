@@ -597,9 +597,6 @@ class NuScenesProcessor(object):
             # Save lidar points in ego frame
             lidar_save_path = f"{self.save_dir}/{str(scene_idx).zfill(3)}/lidar/{str(frame_idx).zfill(3)}.bin"
             pc.points.T.astype(np.float32).tofile(lidar_save_path)
-            print(pc.points.shape)
-            print(pc.points.T.astype(np.float32).shape)
-            print(lidar_save_path)
             # NEW Save lidar segmentation labels
             try:
                 lidarseg_rec = self.nusc.get('lidarseg', token)
@@ -607,10 +604,7 @@ class NuScenesProcessor(object):
                 label_path = os.path.join(self.nusc.dataroot, label_relpath)
 
                 labels = np.fromfile(label_path, dtype=np.uint8)
-                print(labels.shape)
-                print(labels[0].shape)
-                print(pc.points.shape[1])
-                
+                print(f"Lidarseg size: {labels.shape[0]} labels vs {pc.points.shape[1]} points in {token}")
                 if labels.shape[0] != pc.points.shape[1]:
                     raise RuntimeError(
                         f"Lidarseg size mismatch: {labels.shape[0]} labels vs "
@@ -621,8 +615,6 @@ class NuScenesProcessor(object):
                     f"{self.save_dir}/{str(scene_idx).zfill(3)}/lidarseg/{str(frame_idx).zfill(3)}.bin"
                 )
                 labels.tofile(lidarseg_save_path)
-                print(lidarseg_save_path)
-                raise RuntimeError("first lidar and lidarseg saved")
 
                 # NEW build keyframe label index
                 try:
@@ -634,7 +626,7 @@ class NuScenesProcessor(object):
                 # No lidarseg available for this sample_data (likely a sweep)
                 
                 labels_for_sweep = self.propagate_labels_to_sweep(self.nusc, token, keyframes_tree, keyframes_lbls, r_max=0.5)
-
+                print(f"Lidarseg size: {labels_for_sweep.shape[0]} labels vs {pc.points.shape[1]} points in {token}")
                 if labels_for_sweep.shape[0] != pc.points.shape[1]:
                     raise RuntimeError(
                         f"Lidarseg size mismatch: {labels_for_sweep.shape[0]} labels vs "
