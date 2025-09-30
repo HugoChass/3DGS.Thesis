@@ -419,7 +419,8 @@ class NuScenesLiDARSource(SceneLidarSource):
             directions.append(lidar_directions)
             ranges.append(lidar_ranges)
             timesteps.append(lidar_timestamp)
-
+            print('lidar origins shape', lidar_origins.shape)
+            print('lidar directions shape', lidar_directions.shape)
             # NEW Load lidarseg labels for frame t
             labels_np = np.fromfile(self.lidar_seg_filepaths[t], dtype=np.uint8)
             if labels_np.shape[0] != original_length:
@@ -428,6 +429,7 @@ class NuScenesLiDARSource(SceneLidarSource):
                     f"{labels_np.shape[0]} labels vs {original_length} points"
                 )
             labels_t = torch.from_numpy(labels_np.astype(np.int8))
+            print('labels shape',labels_t.shape)
             lidarseg_labels.append(labels_t)
 
         logger.info(
@@ -442,7 +444,7 @@ class NuScenesLiDARSource(SceneLidarSource):
         self.visible_masks = torch.zeros_like(self.ranges).squeeze().bool()
         self.colors = torch.ones_like(self.directions)
         self.semantics = torch.cat(lidarseg_labels, dim=0) # NEW
-
+        print('self directions, color. seg shape', self.directions.shape, self.colors.shape, self.semantics.shape)
         self._timesteps = torch.cat(timesteps, dim=0)
         self.register_normalized_timestamps()
 
