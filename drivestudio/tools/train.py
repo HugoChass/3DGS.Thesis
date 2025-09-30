@@ -121,7 +121,6 @@ def main(args):
         scene_aabb=dataset.get_aabb().reshape(2, 3),
         device=device
     )
-    print('after trainer dataset', dataset.lidar_source.colors.shape)
     # NOTE: If resume, gaussians will be loaded from checkpoint
     #       If not, gaussians will be initialized from dataset
     if args.resume_from is not None:

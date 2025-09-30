@@ -76,6 +76,7 @@ class DrivingDataset(SceneDataset):
 
         # ---- create data source ---- #
         self.pixel_source, self.lidar_source = self.build_data_source()
+        print('building data source dataset', self.lidar_source.colors.shape)
         assert self.pixel_source is not None and self.lidar_source is not None, \
             "Must have both pixel source and lidar source"
         self.project_lidar_pts_on_images(
@@ -99,6 +100,7 @@ class DrivingDataset(SceneDataset):
         # debug use
         # self.seg_dynamic_instances_in_lidar_frame(-1, frame_idx=0)
         # self.get_init_objects()
+        print('end init dataset', self.lidar_source.colors.shape)
         
     @property
     def instance_num(self):
