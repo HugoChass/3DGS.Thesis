@@ -344,7 +344,7 @@ class DrivingDataset(SceneDataset):
                 valid_pts = o_pts[mask]
                 valid_colors = self.lidar_source.colors[lidar_dict["lidar_mask"]][mask]
                 # valid_flows = lidar_dict["lidar_flows"][mask]
-                valid_semantics = self.lidar_source.semantics[lidar_dict["lidar_mask"]][mask]
+                valid_semantics = self.lidar_source.semantics[mask]
 
                 instance_dict[ins_id]["pts"].append(valid_pts)
                 instance_dict[ins_id]["colors"].append(valid_colors)
