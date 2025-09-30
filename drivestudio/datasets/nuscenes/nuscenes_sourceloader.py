@@ -398,9 +398,13 @@ class NuScenesLiDARSource(SceneLidarSource):
             lidar_info = np.fromfile(self.lidar_filepaths[t], dtype=np.float32).reshape(-1, 4)
             original_length = len(lidar_info)
             accumulated_num_original_rays += original_length
-
+            print(lidar_info[:, :3].shape)
+            print(lidar_info.shape[1])
+            print(lidar_info.shape)
             lidar_points = torch.from_numpy(lidar_info[:, :3]).float()
             lidar_origins = torch.zeros_like(lidar_points)
+            print(len(lidar_points))
+            print(original_length)
 
             lidar_origins = (
                 self.lidar_to_worlds[t][:3, :3] @ lidar_origins.T
@@ -425,7 +429,7 @@ class NuScenesLiDARSource(SceneLidarSource):
             labels_np = np.fromfile(self.lidar_seg_filepaths[t], dtype=np.uint16)
             if labels_np.shape[0] != original_length:
                 raise RuntimeError(
-                    f"Lidarseg size mismatch for {self.lidar_seg_filepaths[t]}: "
+                    f"Lidarseg size mismatch for {self.lidar_seg_filepaths[t]} and {self.lidar_filepaths[t]}: "
                     f"{labels_np.shape[0]} labels vs {original_length} points"
                 )
             labels_t = torch.from_numpy(labels_np.astype(np.int64))
