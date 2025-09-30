@@ -427,7 +427,7 @@ class NuScenesLiDARSource(SceneLidarSource):
                     f"Lidarseg size mismatch for {self.lidar_seg_filepaths[t]} and {self.lidar_filepaths[t]}: "
                     f"{labels_np.shape[0]} labels vs {original_length} points"
                 )
-            labels_t = torch.from_numpy(labels_np.astype(np.int64))
+            labels_t = torch.from_numpy(labels_np.astype(np.int8))
             lidarseg_labels.append(labels_t)
 
         logger.info(
