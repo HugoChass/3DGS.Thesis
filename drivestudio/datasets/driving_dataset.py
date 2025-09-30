@@ -343,6 +343,16 @@ class DrivingDataset(SceneDataset):
                     & (o_pts[:, 2] > -o_size[2] / 2)
                     & (o_pts[:, 2] < o_size[2] / 2)
                 )
+
+                print('debug')
+                print('self.lidar_source.colors', self.lidar_source.colors.shape)
+                print('self.lidar_source.colors[lidar_dict["lidar_mask"]]', self.lidar_source.colors[lidar_dict["lidar_mask"]].shape)
+                print('self.lidar_source.colors[lidar_dict["lidar_mask"]][mask]', self.lidar_source.colors[lidar_dict["lidar_mask"]][mask].shape)
+                print('self.lidar_source.semantics', self.lidar_source.semantics.shape)
+                print('lidar_dict["lidar_mask"]', lidar_dict["lidar_mask"].shape)
+                print('[mask]',[mask].shape)
+
+
                 valid_pts = o_pts[mask]
                 valid_colors = self.lidar_source.colors[lidar_dict["lidar_mask"]][mask]
                 # valid_flows = lidar_dict["lidar_flows"][mask]
