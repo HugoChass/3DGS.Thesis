@@ -76,6 +76,7 @@ class DrivingDataset(SceneDataset):
 
         # ---- create data source ---- #
         self.pixel_source, self.lidar_source = self.build_data_source()
+        print('build data source lidar shape', self.lidar_source.colors.shape)
         assert self.pixel_source is not None and self.lidar_source is not None, \
             "Must have both pixel source and lidar source"
         self.project_lidar_pts_on_images(
@@ -291,8 +292,15 @@ class DrivingDataset(SceneDataset):
 
         instance_dict = {}
         for fi in range(self.frame_num):
+            print('color shape', self.lidar_source.colors.shape)
+            print('seg shape', self.lidar_source.semantics.shape)
+            print('direction shape', self.lidar_source.direction.shape)
             lidar_dict = self.lidar_source.get_lidar_rays(fi)
+            print('color shape', self.lidar_source.colors.shape)
+            print('seg shape', self.lidar_source.semantics.shape)
+            print('direction shape', self.lidar_source.direction.shape)
             lidar_pts = lidar_dict["lidar_origins"] + lidar_dict["lidar_viewdirs"] * lidar_dict["lidar_ranges"]
+            print("lidar points shape", lidar_pts.shape)
             for ins_id in range(self.instance_num):
                 instance_active = self.pixel_source.per_frame_instance_mask[fi, ins_id]
                 o_type = self.pixel_source.instances_model_types[ins_id].item()
