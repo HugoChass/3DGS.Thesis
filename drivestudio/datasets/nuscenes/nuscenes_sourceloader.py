@@ -422,7 +422,6 @@ class NuScenesLiDARSource(SceneLidarSource):
 
             # NEW Load lidarseg labels for frame t
             labels_np = np.fromfile(self.lidar_seg_filepaths[t], dtype=np.uint8)
-            print(labels_np.shape, original_length)
             if labels_np.shape[0] != original_length:
                 raise RuntimeError(
                     f"Lidarseg size mismatch for {self.lidar_seg_filepaths[t]} and {self.lidar_filepaths[t]}: "
