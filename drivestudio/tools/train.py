@@ -109,7 +109,6 @@ def main(args):
 
     # build dataset
     dataset = DrivingDataset(data_cfg=cfg.data)
-    print('after building dataset', dataset.lidar_source.colors.shape)
     # setup trainer
     trainer = import_str(cfg.trainer.type)(
         **cfg.trainer,

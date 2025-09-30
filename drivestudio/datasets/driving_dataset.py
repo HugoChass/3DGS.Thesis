@@ -76,7 +76,6 @@ class DrivingDataset(SceneDataset):
 
         # ---- create data source ---- #
         self.pixel_source, self.lidar_source = self.build_data_source()
-        print('building data source dataset', self.lidar_source.colors.shape)
         assert self.pixel_source is not None and self.lidar_source is not None, \
             "Must have both pixel source and lidar source"
         self.project_lidar_pts_on_images(
@@ -100,7 +99,6 @@ class DrivingDataset(SceneDataset):
         # debug use
         # self.seg_dynamic_instances_in_lidar_frame(-1, frame_idx=0)
         # self.get_init_objects()
-        print('end init dataset', self.lidar_source.colors.shape)
         
     @property
     def instance_num(self):
@@ -348,16 +346,7 @@ class DrivingDataset(SceneDataset):
                 valid_pts = o_pts[mask]
                 valid_colors = self.lidar_source.colors[lidar_dict["lidar_mask"]][mask]
                 # valid_flows = lidar_dict["lidar_flows"][mask]
-
-                print("debug start")
-                print('color shape', self.lidar_source.colors.shape)
-                print('seg shape', self.lidar_source.semantics.shape)
-                print('lidar mask', lidar_dict["lidar_mask"].shape)
-                print('points shape', o_pts.shape)
-                print('valid points color shape', valid_pts.shape, valid_colors.shape)
-                print('debug end')
-
-                valid_semantics = self.lidar_source.semantics[mask]
+                valid_semantics = self.lidar_source.semantics[lidar_dict["lidar_mask"]][mask]
 
                 instance_dict[ins_id]["pts"].append(valid_pts)
                 instance_dict[ins_id]["colors"].append(valid_colors)
