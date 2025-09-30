@@ -470,6 +470,7 @@ class NuScenesLiDARSource(SceneLidarSource):
             self._timesteps = self._timesteps[self.visible_masks]
             self._normalized_time = self._normalized_time[self.visible_masks]
             self.colors = self.colors[self.visible_masks]
+            self.semantics = self.semantics[self.visible_masks]
             logger.info(
                 f"[Lidar] {num_bf - self.visible_masks.sum()} out of {num_bf} points are cleared. {self.visible_masks.sum()} points left."
             )
