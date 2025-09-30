@@ -587,7 +587,7 @@ class NuScenesProcessor(object):
             
             # Load point cloud
             pc = LidarPointCloud.from_file(lidar_path)
-            
+
             # Get lidar extrinsics (lidar to ego)
             calib_data = self.nusc.get('calibrated_sensor', lidar_data['calibrated_sensor_token'])
             lidar_to_ego = np.eye(4)
@@ -597,7 +597,9 @@ class NuScenesProcessor(object):
             # Save lidar points in ego frame
             lidar_save_path = f"{self.save_dir}/{str(scene_idx).zfill(3)}/lidar/{str(frame_idx).zfill(3)}.bin"
             pc.points.T.astype(np.float32).tofile(lidar_save_path)
-            
+            print(pc.points.shape)
+            print(pc.points.T.astype(np.float32).shape)
+            print(lidar_save_path)
             # NEW Save lidar segmentation labels
             try:
                 lidarseg_rec = self.nusc.get('lidarseg', token)
@@ -605,6 +607,10 @@ class NuScenesProcessor(object):
                 label_path = os.path.join(self.nusc.dataroot, label_relpath)
 
                 labels = np.fromfile(label_path, dtype=np.uint8)
+                print(labels.shape)
+                print(labels[0].shape)
+                print(pc.points.shape[1])
+                
                 if labels.shape[0] != pc.points.shape[1]:
                     raise RuntimeError(
                         f"Lidarseg size mismatch: {labels.shape[0]} labels vs "
@@ -615,6 +621,8 @@ class NuScenesProcessor(object):
                     f"{self.save_dir}/{str(scene_idx).zfill(3)}/lidarseg/{str(frame_idx).zfill(3)}.bin"
                 )
                 labels.tofile(lidarseg_save_path)
+                print(lidarseg_save_path)
+                raise RuntimeError("first lidar and lidarseg saved")
 
                 # NEW build keyframe label index
                 try:
