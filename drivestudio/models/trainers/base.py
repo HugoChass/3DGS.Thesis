@@ -350,6 +350,7 @@ class BasicTrainer(nn.Module):
             "_rgbs": [],
             "_opacities": [],
             "class_labels": [],
+            "_semantics": [],
         }
         for class_name in self.gaussian_classes.keys():
             gs = self.models[class_name].get_gaussians(cam)
