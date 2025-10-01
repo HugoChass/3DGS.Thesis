@@ -104,7 +104,7 @@ class VanillaGaussians(nn.Module):
         self._features_dc = Parameter(shs[:, 0, :])
         self._features_rest = Parameter(shs[:, 1:, :])
         self._opacities = Parameter(torch.logit(0.1 * torch.ones(self.num_points, 1, device=self.device)))
-        self.register_buffer('_semantics', init_semantics.long()) # NEW
+        self._semantics = init_semantics # NEW
         
     @property
     def colors(self):
