@@ -345,12 +345,17 @@ class DrivingDataset(SceneDataset):
                 )
 
                 print('debug')
+                print('[mask]', [mask])
+                print('lidar_dict["lidar_mask"]', lidar_dict["lidar_mask"].shape)
                 print('self.lidar_source.colors', self.lidar_source.colors.shape)
                 print('self.lidar_source.colors[lidar_dict["lidar_mask"]]', self.lidar_source.colors[lidar_dict["lidar_mask"]].shape)
                 print('self.lidar_source.colors[lidar_dict["lidar_mask"]][mask]', self.lidar_source.colors[lidar_dict["lidar_mask"]][mask].shape)
                 print('self.lidar_source.semantics', self.lidar_source.semantics.shape)
-                print('lidar_dict["lidar_mask"]', lidar_dict["lidar_mask"].shape)
-                print('[mask]',[mask].shape)
+                print('self.lidar_source.semantics[lidar_dict["lidar_mask"]]', self.lidar_source.semantics[lidar_dict["lidar_mask"]].shape)
+                print('self.lidar_source.semantics[lidar_dict["lidar_mask"]][mask]', self.lidar_source.semantics[lidar_dict["lidar_mask"]][mask].shape)
+                print('o_pts', o_pts.shape)
+                print('o_pts[mask]', o_pts[mask].shape)
+                
 
 
                 valid_pts = o_pts[mask]
