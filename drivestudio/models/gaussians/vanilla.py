@@ -360,7 +360,6 @@ class VanillaGaussians(nn.Module):
         new_feature_rest = self._features_rest[split_mask].repeat(samps, 1, 1)
         # step 3, sample new opacities
         new_opacities = self._opacities[split_mask].repeat(samps, 1)
-        print('opacities', self._opacities.shape, self._opacities[split_mask].shape, self._opacities[split_mask].repeat(samps, 1).shape, new_opacities.shape)
         # step 4, sample new scales
         size_fac = 1.6
         new_scales = torch.log(torch.exp(self._scales[split_mask]) / size_fac).repeat(samps, 1)
@@ -368,8 +367,7 @@ class VanillaGaussians(nn.Module):
         # step 5, sample new quats
         new_quats = self._quats[split_mask].repeat(samps, 1)
 
-        new_semantics = self._semantics[split_mask].repeat(samps, 1) # NEW + RETURN
-        print('semantics', self._semantics.shape, self._semantics[split_mask].shape, self._semantics[split_mask].repeat(samps, 1).shape, new_semantics.shape)
+        new_semantics = self._semantics[split_mask].repeat(samps) # NEW + RETURN
         return new_means, new_feature_dc, new_feature_rest, new_opacities, new_scales, new_quats, new_semantics
 
     def dup_gaussians(self, dup_mask: torch.Tensor) -> Tuple:
