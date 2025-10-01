@@ -200,7 +200,6 @@ class VanillaGaussians(nn.Module):
             self.class_prefix+"opacity": [self._opacities],
             self.class_prefix+"scaling": [self._scales],
             self.class_prefix+"rotation": [self._quats],
-            self.class_prefix+"semantics": [self._semantics], # NEW
         }
     
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
