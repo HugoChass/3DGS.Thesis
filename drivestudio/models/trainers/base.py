@@ -184,8 +184,8 @@ class BasicTrainer(nn.Module):
             component_name = params_name.split("#")[1]
             class_cfg = self.model_config.get(class_name)
             class_optim_cfg = class_cfg["optim"]
-            
             raw_optim_cfg = class_optim_cfg.get(component_name, None)
+            print(class_name, component_name, class_cfg, class_optim_cfg, raw_optim_cfg)
             lr_scale_factor = raw_optim_cfg.get("scale_factor", 1.0)
             if isinstance(lr_scale_factor, str) and lr_scale_factor == "scene_radius":
                 # scale the spatial learning rate to scene scale
