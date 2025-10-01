@@ -146,6 +146,13 @@ class MultiTrainer(BasicTrainer):
                     visible_mask = dataset.check_pts_visibility(random_pts)
                     valid_pts = random_pts[visible_mask]
                     
+                    print('debug')
+                    print('sampled_pts', sampled_pts.shape, sampled_pts)
+                    print('valid_pts', valid_pts.shape, valid_pts)
+                    print('sampled_color', sampled_color.shape, sampled_color)
+                    print('torch.rand(valid_pts.shape, )', torch.rand(valid_pts.shape, ).shape, torch.rand(valid_pts.shape, ))
+                    print('sampled_semantics', sampled_semantics.shape, sampled_semantics)
+
                     sampled_pts = torch.cat([sampled_pts, valid_pts], dim=0)
                     sampled_color = torch.cat([sampled_color, torch.rand(valid_pts.shape, ).to(self.device)], dim=0)
                     sampled_semantics = torch.cat([sampled_semantics, valid_pts], dim=0)
