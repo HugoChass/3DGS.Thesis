@@ -175,6 +175,7 @@ class BasicTrainer(nn.Module):
         # get param groups first
         self.param_groups = {}
         for class_name, model in self.models.items():
+            print(class_name, model.get_param_groups())
             self.param_groups.update(model.get_param_groups())
                  
         groups = []
@@ -186,7 +187,7 @@ class BasicTrainer(nn.Module):
             class_optim_cfg = class_cfg["optim"]
             raw_optim_cfg = class_optim_cfg.get(component_name, None)
             if raw_optim_cfg is None:
-                print(raw_optim_cfg, class_optim_cfg, class_cfg, component_name, class_name)
+                print(raw_optim_cfg, component_name, class_name)
             lr_scale_factor = raw_optim_cfg.get("scale_factor", 1.0)
             if isinstance(lr_scale_factor, str) and lr_scale_factor == "scene_radius":
                 # scale the spatial learning rate to scene scale
