@@ -86,7 +86,7 @@ class RigidNodes(VanillaGaussians):
         self._scales = Parameter(torch.log(avg_dist.repeat(1, 3)))
         self._quats = Parameter(random_quat_tensor(self.num_points).to(self.device))
         dim_sh = num_sh_bases(self.sh_degree)
-        self._semantics = Parameter(instances_semantics.float()) # NEW
+        self.register_buffer('_semantics', instances_semantics.long()) # NEW
         
         # pose refinement
         self.instances_quats = Parameter(self.quat_act(instances_quats)) # (num_frame, num_instances, 4)
