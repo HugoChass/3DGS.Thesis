@@ -522,8 +522,8 @@ class BasicTrainer(nn.Module):
 
         results.update({
             "semantic_probs": probs,           # [H,W,K]
-            "semantic_labels": labels,         # [H,W] int64, -1 for background
-            "semantic_labels_rgb": labels_rgb, # [H,W,3] float in [0,1]
+            "semantic_label": labels,         # [H,W] int64, -1 for background
+            "semantic_rgb": labels_rgb, # [H,W,3] float in [0,1]
         })
 
         return results, render_fn
