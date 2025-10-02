@@ -505,7 +505,7 @@ class BasicTrainer(nn.Module):
         labels = torch.argmax(probs, dim=-1)                      # [H,W]
         
         # Colorize the hard label map
-        labels_rgb = torch.gather(palette, torch.cast(labels))
+        labels_rgb = torch.gather(palette, labels)
         labels_rgb[labels < 0] = unlabeled_color
 
         results.update({
