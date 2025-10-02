@@ -124,9 +124,9 @@ class dataclass_gs:
     _rgbs: torch.Tensor
     _scales: torch.Tensor
     _quats: torch.Tensor
-    _semantics: torch.Tensor = None
     detach_keys: List[str]
     extras: Optional[Dict[str, torch.Tensor]] = None
+    _semantics: torch.Tensor = None
     def set_grad_controller(self, detach_keys):
         self.detach_keys = detach_keys
     @property
