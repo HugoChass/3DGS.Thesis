@@ -428,13 +428,13 @@ class BasicTrainer(nn.Module):
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
         
-        def render_fn(opaticy_mask=None, return_info=False):
+        def render_fn(opaticy_mask=None, return_info=False, override_colors=None):
             renders, alphas, info = rasterization(
                 means=gs.means,
                 quats=gs.quats,
                 scales=gs.scales,
                 opacities=gs.opacities.squeeze()*opaticy_mask if opaticy_mask is not None else gs.opacities.squeeze(),
-                colors=gs.rgbs,
+                colors=override_colors if override_colors is not None else gs.rgbs,
                 viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],  # [C, 4, 4]
                 Ks=cam.Ks[None, ...],  # [C, 3, 3]
                 width=cam.W,
