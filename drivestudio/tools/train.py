@@ -156,7 +156,6 @@ def main(args):
         # "DeformableNodes_depths",
         # "SMPLNodes_depths",
         # "mask",
-        "semantics_labels",
         "semantics_rgbs",
     ]
     if cfg.render.vis_lidar:
