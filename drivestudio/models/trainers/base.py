@@ -457,9 +457,9 @@ class BasicTrainer(nn.Module):
             else:
                 return torch.clamp(rendered_rgb, max=1.0), rendered_depth, alphas[..., None], info
         
-        def get_semantic_palette():
-            pal = torch.tensor(_PALETTE_255) / 255.0  # [32,3]
-            unlabeled = torch.tensor(_UNLABELED_255) / 255.0  # [3]
+        def get_semantic_palette(device=None, dtype=torch.float32):
+            pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
+            unlabeled = torch.tensor(_UNLABELED_255, device=device, dtype=dtype) / 255.0
             return pal, unlabeled
         
         def colorize_label_image(label_img: torch.Tensor, palette: torch.Tensor, unlabeled_color: torch.Tensor):
@@ -487,11 +487,11 @@ class BasicTrainer(nn.Module):
             self.info["means2d"].retain_grad()
         
         # render semantics
-        palette, unlabeled_color = get_semantic_palette()
-
-        dtype = gs.rgbs.dtype
+        device, dtype = gs.rgbs.device, gs.rgbs.dtype
         H, W, _ = rgb.shape
         num_classes = 32
+
+        palette, unlabeled_color = get_semantic_palette(device=device, dtype=dtype)
 
         # total coverage/alpha for normalization (remove last dim)
         alpha_total = opacity.squeeze(-1)  # [H,W]
