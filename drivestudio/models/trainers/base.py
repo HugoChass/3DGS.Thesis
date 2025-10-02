@@ -501,12 +501,23 @@ class BasicTrainer(nn.Module):
         # probabilities conditioned on being non-background:
         eps = 1e-6
         probs = class_alphas / (alpha_total.unsqueeze(-1) + eps)  # [H,W,K]
-        # Hard labels; if a pixel has zero alpha (pure background), set label = -1
-        labels = torch.argmax(probs, dim=-1)                      # [H,W]
+        # Hard labels
+        idx = torch.argmax(probs, dim=-1)
+        class_ids_tensor = torch.tensor(class_ids, device=device, dtype=torch.long)
+        labels = class_ids_tensor[idx]   
         
         # Colorize the hard label map
-        labels_rgb = torch.gather(palette, labels)
-        labels_rgb[labels < 0] = unlabeled_color
+        safe = torch.clamp(labels, min=0)                               # map -1 -> 0 for indexing
+        palette = palette.to(device=device, dtype=dtype)
+        print('paletter', palette.shape, palette)
+        print('safe', safe.shape, safe)
+        print('safe.view(-1)', safe.view(-1).shape, safe.view(-1))
+        labels_rgb = palette[safe.view(-1)].view(H, W, 3).clone()       # [H,W,3]
+        print('labels_rgb', labels_rgb.shape, labels_rgb)
+        unl_mask = (labels == -1)
+        print('unl_mask', unl_mask.shape, unl_mask)
+        if unl_mask.any():
+            labels_rgb[unl_mask] = unlabeled_color
 
         results.update({
             "semantic_probs": probs,           # [H,W,K]
