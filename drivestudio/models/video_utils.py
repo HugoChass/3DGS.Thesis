@@ -114,6 +114,9 @@ def render(
     opacities, sky_masks = [], []
     Background_opacities, RigidNodes_opacities, DeformableNodes_opacities, SMPLNodes_opacities, Dynamic_opacities = [], [], [], [], []
     
+    # semantics
+    semantics_labels, semantics_rgbs = [], []
+
     # misc
     cam_names, cam_ids = [], []
 
@@ -227,6 +230,11 @@ def render(
                 mask = (depth_map.unsqueeze(-1) > 0).cpu().numpy()
                 lidar_on_image = image_infos["pixels"].cpu().numpy() * (1 - mask) + depth_img * mask
                 lidar_on_images.append(lidar_on_image)
+            
+            # ------------- semantics ------------- #
+            if "semantic_rgb" in results:
+                semantics_labels.append(get_numpy(results['semantic_label']))
+                semantics_rgbs.append(get_numpy(results['semantic_rgb']))
 
             if compute_metrics:
                 psnr = compute_psnr(rgb, image_infos["pixels"])
@@ -378,6 +386,10 @@ def render(
         results_dict["SMPLNodes_opacities"] = SMPLNodes_opacities
     if len(Dynamic_opacities) > 0:
         results_dict["Dynamic_opacities"] = Dynamic_opacities
+    if len(semantics_labels) > 0:
+        results_dict["semantics_labels"] = semantics_labels
+    if len(semantics_rgbs) > 0:
+        results_dict["semantics_rgbs"] = semantics_rgbs
     return results_dict
 
 
