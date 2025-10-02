@@ -155,7 +155,9 @@ def main(args):
         # "RigidNodes_depths",
         # "DeformableNodes_depths",
         # "SMPLNodes_depths",
-        # "mask"
+        # "mask",
+        "semantics_labels",
+        "semantics_rgbs",
     ]
     if cfg.render.vis_lidar:
         render_keys.insert(0, "lidar_on_images")
