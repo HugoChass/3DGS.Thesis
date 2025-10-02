@@ -427,7 +427,7 @@ class BasicTrainer(nn.Module):
         cam: dataclass_camera,
         **kwargs,
     ) -> Dict[str, torch.Tensor]:
-    
+        
         def render_fn(opaticy_mask=None, return_info=False):
             renders, alphas, info = rasterization(
                 means=gs.means,
@@ -505,7 +505,7 @@ class BasicTrainer(nn.Module):
         for k in class_ids:
             mask_k = (gs.semantics == k).float()  # [N]
             # Render class-k coverage. RGB equals accumulated alpha because colors=1.
-            rgb_k, _, _ = render_fn(opacity_mask=mask_k, override_colors=ones_color)
+            rgb_k, _, _ = render_fn(opaticy_mask=mask_k, override_colors=ones_color)
             # Any channel is fine; they are identical.
             class_alpha_k = rgb_k[..., 0]  # [H,W]
             class_alphas.append(class_alpha_k)
