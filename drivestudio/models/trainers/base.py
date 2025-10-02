@@ -462,19 +462,6 @@ class BasicTrainer(nn.Module):
             unlabeled = torch.tensor(_UNLABELED_255, device=device, dtype=dtype) / 255.0
             return pal, unlabeled
         
-        def colorize_label_image(label_img: torch.Tensor, palette: torch.Tensor, unlabeled_color: torch.Tensor):
-            """
-            label_img: [H,W] int64 with values in {-1, 0..31}
-            returns: [H,W,3] float in [0,1]
-            """
-            H, W = label_img.shape
-            safe = torch.clamp(label_img, min=0)
-            color_img = palette[safe.view(-1)].view(H, W, 3)
-            unl_mask = (label_img < 0)
-            if unl_mask.any():
-                color_img[unl_mask] = unlabeled_color
-            return color_img
-
         # render rgb and opacity
         rgb, depth, opacity, self.info = render_fn(return_info=True)
         results = {
@@ -516,9 +503,10 @@ class BasicTrainer(nn.Module):
         probs = class_alphas / (alpha_total.unsqueeze(-1) + eps)  # [H,W,K]
         # Hard labels; if a pixel has zero alpha (pure background), set label = -1
         labels = torch.argmax(probs, dim=-1)                      # [H,W]
-
+        
         # Colorize the hard label map
-        labels_rgb = colorize_label_image(labels, palette, unlabeled_color)
+        labels_rgb = torch.gather(palette, torch.cast(labels))
+        labels_rgb[labels < 0] = unlabeled_color
 
         results.update({
             "semantic_probs": probs,           # [H,W,K]
