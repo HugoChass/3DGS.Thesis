@@ -18,6 +18,44 @@ from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 
 from models.gaussians.basics import *
 
+# Map indices 0..31 to distinct, readable colors (RGB in [0,1])
+_PALETTE_255 = [
+    (0, 0, 0),          # 0  noise
+    (255, 192, 203),    # 1  animal
+    (220, 20, 60),      # 2  human.pedestrian.adult
+    (255, 105, 180),    # 3  human.pedestrian.child
+    (255, 165, 0),      # 4  human.pedestrian.construction_worker
+    (255, 215, 0),      # 5  human.pedestrian.personal_mobility
+    (0, 0, 139),        # 6  human.pedestrian.police_officer
+    (199, 21, 133),     # 7  human.pedestrian.stroller
+    (148, 0, 211),      # 8  human.pedestrian.wheelchair
+    (112, 128, 144),    # 9  movable_object.barrier
+    (160, 82, 45),      # 10 movable_object.debris
+    (210, 105, 30),     # 11 movable_object.pushable_pullable
+    (255, 69, 0),       # 12 movable_object.trafficcone
+    (105, 105, 105),    # 13 static_object.bicycle_rack
+    (0, 191, 255),      # 14 vehicle.bicycle
+    (65, 105, 225),     # 15 vehicle.bus.bendy
+    (30, 144, 255),     # 16 vehicle.bus.rigid
+    (0, 0, 255),        # 17 vehicle.car
+    (184, 134, 11),     # 18 vehicle.construction
+    (255, 0, 0),        # 19 vehicle.emergency.ambulance
+    (0, 0, 205),        # 20 vehicle.emergency.police
+    (255, 0, 255),      # 21 vehicle.motorcycle
+    (75, 0, 130),       # 22 vehicle.trailer
+    (0, 128, 128),      # 23 vehicle.truck
+    (50, 50, 50),       # 24 flat.driveable_surface
+    (205, 133, 63),     # 25 flat.other
+    (244, 164, 96),     # 26 flat.sidewalk
+    (143, 188, 143),    # 27 flat.terrain
+    (169, 169, 169),    # 28 static.manmade
+    (192, 192, 192),    # 29 static.other
+    (34, 139, 34),      # 30 static.vegetation
+    (255, 255, 255),    # 31 vehicle.ego
+]
+# Color for unlabeled (-1)
+_UNLABELED_255 = (0, 0, 0)
+
 logger = logging.getLogger()
 
 class GSModelType(IntEnum):
@@ -376,6 +414,7 @@ class BasicTrainer(nn.Module):
             _quats=gs_dict["_quats"],
             _rgbs=gs_dict["_rgbs"],
             _opacities=gs_dict["_opacities"],
+            _semantics=gs_dict["_semantics"],
             detach_keys=[],    # if "means" in detach_keys, then the means will be detached
             extras=None        # to save some extra information (TODO) more flexible way
         )
@@ -418,6 +457,24 @@ class BasicTrainer(nn.Module):
             else:
                 return torch.clamp(rendered_rgb, max=1.0), rendered_depth, alphas[..., None], info
         
+        def get_semantic_palette():
+            pal = torch.tensor(_PALETTE_255) / 255.0  # [32,3]
+            unlabeled = torch.tensor(_UNLABELED_255) / 255.0  # [3]
+            return pal, unlabeled
+        
+        def colorize_label_image(label_img: torch.Tensor, palette: torch.Tensor, unlabeled_color: torch.Tensor):
+            """
+            label_img: [H,W] int64 with values in {-1, 0..31}
+            returns: [H,W,3] float in [0,1]
+            """
+            H, W = label_img.shape
+            safe = torch.clamp(label_img, min=0)
+            color_img = palette[safe.view(-1)].view(H, W, 3)
+            unl_mask = (label_img < 0)
+            if unl_mask.any():
+                color_img[unl_mask] = unlabeled_color
+            return color_img
+
         # render rgb and opacity
         rgb, depth, opacity, self.info = render_fn(return_info=True)
         results = {
@@ -429,6 +486,46 @@ class BasicTrainer(nn.Module):
         if self.training:
             self.info["means2d"].retain_grad()
         
+        # render semantics
+        palette, unlabeled_color = get_semantic_palette()
+
+        dtype = gs.rgbs.dtype
+        H, W, _ = rgb.shape
+        num_classes = 32
+
+        # total coverage/alpha for normalization (remove last dim)
+        alpha_total = opacity.squeeze(-1)  # [H,W]
+
+        # Precompute ones_color so that RGB output equals accumulated alpha
+        ones_color = torch.ones_like(gs.rgbs)  # [N,3]
+
+        # Output tensor
+        class_alphas = []
+        class_ids = list(range(num_classes)) + [-1]
+        for k in class_ids:
+            mask_k = (gs.semantics == k).float()  # [N]
+            # Render class-k coverage. RGB equals accumulated alpha because colors=1.
+            rgb_k, _, _ = render_fn(opacity_mask=mask_k, override_colors=ones_color)
+            # Any channel is fine; they are identical.
+            class_alpha_k = rgb_k[..., 0]  # [H,W]
+            class_alphas.append(class_alpha_k)
+
+        class_alphas = torch.stack(class_alphas, dim=-1)  # [H,W,K]
+        # probabilities conditioned on being non-background:
+        eps = 1e-6
+        probs = class_alphas / (alpha_total.unsqueeze(-1) + eps)  # [H,W,K]
+        # Hard labels; if a pixel has zero alpha (pure background), set label = -1
+        labels = torch.argmax(probs, dim=-1)                      # [H,W]
+
+        # Colorize the hard label map
+        labels_rgb = colorize_label_image(labels, palette, unlabeled_color)
+
+        results.update({
+            "semantic_probs": probs,           # [H,W,K]
+            "semantic_labels": labels,         # [H,W] int64, -1 for background
+            "semantic_labels_rgb": labels_rgb, # [H,W,3] float in [0,1]
+        })
+
         return results, render_fn
 
     def affine_transformation(
