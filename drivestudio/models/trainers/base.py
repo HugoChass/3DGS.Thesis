@@ -509,16 +509,11 @@ class BasicTrainer(nn.Module):
         # Colorize the hard label map
         safe = torch.clamp(labels, min=0)                               # map -1 -> 0 for indexing
         palette = palette.to(device=device, dtype=dtype)
-        print('paletter', palette.shape, palette)
-        print('safe', safe.shape, safe)
-        print('safe.view(-1)', safe.view(-1).shape, safe.view(-1))
         labels_rgb = palette[safe.view(-1)].view(H, W, 3).clone()       # [H,W,3]
-        print('labels_rgb', labels_rgb.shape, labels_rgb)
         unl_mask = (labels == -1)
-        print('unl_mask', unl_mask.shape, unl_mask)
         if unl_mask.any():
             labels_rgb[unl_mask] = unlabeled_color
-
+        
         results.update({
             "semantic_probs": probs,           # [H,W,K]
             "semantic_label": labels,         # [H,W] int64, -1 for background
