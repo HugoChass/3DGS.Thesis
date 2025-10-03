@@ -2,6 +2,7 @@ from typing import Dict
 import torch
 import logging
 import numpy as np
+import os
 
 from datasets.driving_dataset import DrivingDataset
 from models.trainers.base import BasicTrainer, GSModelType
@@ -190,7 +191,25 @@ class MultiTrainer(BasicTrainer):
                 logger.info(f"Initialized {class_name} gaussians")
 
             
-            np.savez_compressed(f"/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/densitycontrol/lidar_points_{class_name}.npz", points=model._means, labels=model._semantics)
+            out_dir = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/densitycontrol"
+
+            def to_numpy_cpu(t, *, dtype=None):
+                t = t.detach().to("cpu")
+                if dtype is not None:
+                    t = t.to(dtype)
+                return t.numpy()
+
+            # Points: (N, 3)
+            points_np = to_numpy_cpu(model._means, dtype=torch.float32)
+
+            # Labels
+            labels_np = to_numpy_cpu(model._semantics, dtype=torch.int32)
+
+            np.savez_compressed(
+                os.path.join(out_dir, f"lidar_points_{class_name}.npz"),
+                points=points_np,
+                labels=labels_np,
+            )            
             print(f"Saved to lidar_points_{class_name}.npz")
         
         if len(empty_classes) > 0:
