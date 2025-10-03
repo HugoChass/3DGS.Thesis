@@ -190,7 +190,7 @@ class DrivingDataset(SceneDataset):
         
         logger.info(f'Initial number of lidar points:{len(self.lidar_source.semantics)}')
         logger.info(f'Number of sampled points:{num_samples}')
-        
+
         # randomly sample points
         sampled_idx = torch.randperm(len(self.lidar_source.pts_xyz))[:num_samples]
         sampled_pts = self.lidar_source.pts_xyz[sampled_idx].to(device)
@@ -294,8 +294,6 @@ class DrivingDataset(SceneDataset):
 
         instance_dict = {}
         for fi in range(self.frame_num):
-            print('color shape', self.lidar_source.colors.shape)
-            print('seg shape', self.lidar_source.semantics.shape)
             lidar_dict = self.lidar_source.get_lidar_rays(fi)
             lidar_pts = lidar_dict["lidar_origins"] + lidar_dict["lidar_viewdirs"] * lidar_dict["lidar_ranges"]
             for ins_id in range(self.instance_num):
