@@ -1,6 +1,7 @@
 from typing import Dict
 import torch
 import logging
+import numpy as np
 
 from datasets.driving_dataset import DrivingDataset
 from models.trainers.base import BasicTrainer, GSModelType
@@ -147,7 +148,8 @@ class MultiTrainer(BasicTrainer):
                     valid_pts = random_pts[visible_mask]
                     
                     random_labels = torch.full((valid_pts.shape[0],), -1, dtype=torch.long, device=self.device)
-
+                    logger.info(f'number of sampled lidar:{len(sampled_semantics)}',
+                                f'number of random points:{len(valid_pts)}')
                     sampled_pts = torch.cat([sampled_pts, valid_pts], dim=0)
                     sampled_color = torch.cat([sampled_color, torch.rand(valid_pts.shape, ).to(self.device)], dim=0)
                     sampled_semantics = torch.cat([sampled_semantics, random_labels], dim=0)
@@ -186,6 +188,10 @@ class MultiTrainer(BasicTrainer):
                 logger.warning(f"No points for {class_name} found, will remove the model")
             else:
                 logger.info(f"Initialized {class_name} gaussians")
+
+            
+            np.savez_compressed(f"/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/densitycontrol/lidar_points_{class_name}.npz", points=model._means, labels=model.semantics)
+            print(f"Saved to lidar_points_{class_name}.npz")
         
         if len(empty_classes) > 0:
             for class_name in empty_classes:
