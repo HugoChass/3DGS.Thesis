@@ -188,6 +188,9 @@ class DrivingDataset(SceneDataset):
             logger.warning(f"num_samples {num_samples} is larger than the number of points {len(self.lidar_source.pts_xyz)}")
             num_samples = len(self.lidar_source.pts_xyz)
         
+        logger.info(f'Initial number of lidar points:{len(self.lidar_source.semantics)}')
+        logger.info(f'Number of sampled points:{num_samples}')
+        
         # randomly sample points
         sampled_idx = torch.randperm(len(self.lidar_source.pts_xyz))[:num_samples]
         sampled_pts = self.lidar_source.pts_xyz[sampled_idx].to(device)

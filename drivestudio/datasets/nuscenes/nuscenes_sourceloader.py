@@ -434,7 +434,7 @@ class NuScenesLiDARSource(SceneLidarSource):
             f"({accumulated_num_rays / accumulated_num_original_rays * 100:.2f}% of "
             f"{accumulated_num_original_rays} original rays)"
         )
-
+        logger.info(f"Total number of lidar points:{original_length}")
         self.origins = torch.cat(origins, dim=0)
         self.directions = torch.cat(directions, dim=0)
         self.ranges = torch.cat(ranges, dim=0)
