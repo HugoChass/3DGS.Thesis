@@ -190,34 +190,34 @@ class MultiTrainer(BasicTrainer):
             else:
                 logger.info(f"Initialized {class_name} gaussians")
 
-            
-            out_dir = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/densitycontrol"
+        # # saving of the lidar points used to initialise Gaussians 
+        #     out_dir = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/densitycontrol"
 
-            def to_numpy_cpu(t, *, dtype=None):
-                t = t.detach().to("cpu")
-                if dtype is not None:
-                    t = t.to(dtype)
-                return t.numpy()
+        #     def to_numpy_cpu(t, *, dtype=None):
+        #         t = t.detach().to("cpu")
+        #         if dtype is not None:
+        #             t = t.to(dtype)
+        #         return t.numpy()
 
-            # Points: (N, 3)
-            points_np = to_numpy_cpu(model._means, dtype=torch.float32)
+        #     # Points: (N, 3)
+        #     points_np = to_numpy_cpu(model._means, dtype=torch.float32)
 
-            # Labels
-            labels_np = to_numpy_cpu(model._semantics, dtype=torch.int32)
+        #     # Labels
+        #     labels_np = to_numpy_cpu(model._semantics, dtype=torch.int32)
 
-            np.savez_compressed(
-                os.path.join(out_dir, f"lidar_points_{class_name}.npz"),
-                points=points_np,
-                labels=labels_np,
-            )            
-            print(f"Saved to lidar_points_{class_name}.npz")
+        #     np.savez_compressed(
+        #         os.path.join(out_dir, f"lidar_points_{class_name}.npz"),
+        #         points=points_np,
+        #         labels=labels_np,
+        #     )            
+        #     print(f"Saved to lidar_points_{class_name}.npz")
         
-        if len(empty_classes) > 0:
-            for class_name in empty_classes:
-                del self.models[class_name]
-                del self.model_config[class_name]
-                del self.gaussian_classes[class_name]
-                logger.warning(f"Model for {class_name} is removed")
+        # if len(empty_classes) > 0:
+        #     for class_name in empty_classes:
+        #         del self.models[class_name]
+        #         del self.model_config[class_name]
+        #         del self.gaussian_classes[class_name]
+        #         logger.warning(f"Model for {class_name} is removed")
                 
         logger.info(f"Initialized gaussians from pcd")
     
