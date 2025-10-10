@@ -196,7 +196,7 @@ def main(args):
                 dtype=int,
             )[step // cfg.logging.vis_freq]
             print('vis_timestep', vis_timestep)
-            vis_timestep = 100
+            vis_timestep = 0
             with torch.no_grad():
                 render_results = render_images(
                     trainer=trainer,
