@@ -54,7 +54,7 @@ _PALETTE_255 = [
     (255, 255, 255),    # 31 vehicle.ego
 ]
 # Color for unlabeled (-1)
-_UNLABELED_255 = (0, 0, 0)
+_UNLABELED_255 = (0, 255, 255)
 
 logger = logging.getLogger()
 
