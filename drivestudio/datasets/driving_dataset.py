@@ -706,8 +706,8 @@ class DrivingDataset(SceneDataset):
                 ] = depth.squeeze(-1)
                 lidar_depth_maps.append(depth_map)
 
-                semantics = lidar_infos["lidar_semantics"][valid_mask]
-                semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=-1, device=self.device)
+                semantics = lidar_infos["lidar_semantics"][valid_mask].to(device=self.device, dtype=torch.int8)
+                semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=-1, device=self.device, dtype=torch.int8)
                 semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics
                 lidar_semantic_maps.append(semantic_map)
                 
