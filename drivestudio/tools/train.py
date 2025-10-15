@@ -15,6 +15,7 @@ from utils.backup import backup_project
 from utils.logging import MetricLogger, setup_logging
 from models.video_utils import render_images, save_videos
 from datasets.driving_dataset import DrivingDataset
+from collections import Counter
 
 logger = logging.getLogger()
 current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
@@ -172,6 +173,10 @@ def main(args):
     metrics_file = os.path.join(cfg.log_dir, "metrics.json")
     metric_logger = MetricLogger(delimiter="  ", output_file=metrics_file)
     all_iters = np.arange(trainer.step, trainer.num_iters + 1)
+
+    # setup semantic logger
+    semantic_log_file = os.path.join(cfg.log_dir, "semanticlog.json")
+    semantic_logger = MetricLogger(delimiter="  ", output_file=semantic_log_file)
     
     # DEBUG USE
     # do_evaluation(
@@ -235,7 +240,43 @@ def main(args):
                     wandb.log({"image_rendering/" + k: wandb.Image(v)})
             del render_results
             torch.cuda.empty_cache()
-                
+
+            # total Gaussian semantics
+            total_semantics = []
+            for model in trainer.models:
+                s = getattr(model, "_semantics", None)
+                if s is None:
+                    continue
+                s = s.detach().cpu()
+                s = s.view(-1).tolist()
+                total_semantics.extend(int(x) for x in s)
+
+            logger.info(f"total number of Gaussians at step {step}: {len(total_semantics)}")
+
+            # Count the number of each label in total_semantics
+            label_counts = Counter(total_semantics)
+
+            # Log like the rest of your metrics
+            # total count
+            semantic_logger.update(**{
+                "semantic_stats/total_gaussians": len(total_semantics)
+            })
+
+            # per-label counts (stable ordering)
+            semantic_logger.update(**{
+                f"semantic_stats/label_{int(lbl)}": int(cnt)
+                for lbl, cnt in sorted(label_counts.items())
+            })
+
+            # also log normalized fractions for easy charts in W&B
+            total = max(len(total_semantics), 1)
+            semantic_logger.update(**{
+                f"semantic_stats/frac_label_{int(lbl)}": cnt / total
+                for lbl, cnt in sorted(label_counts.items())
+            })
+
+            if args.enable_wandb:
+                wandb.log({k: v.avg for k, v in semantic_logger.meters.items()})
         
         #----------------------------------------------------------------------------
         #----------------------------  training step  -------------------------------
