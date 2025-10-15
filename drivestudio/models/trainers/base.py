@@ -285,6 +285,8 @@ class BasicTrainer(nn.Module):
                 use_inverse_depth=depth_loss_cfg.inverse_depth,
             )
         self.depth_loss_fn = depth_loss_fn
+
+        self.semantic_loss_cfg = self.losses_dict.get("semantics", None)
     
     def optimizer_zero_grad(self) -> None:
         self.optimizer.zero_grad()
@@ -655,6 +657,62 @@ class BasicTrainer(nn.Module):
             depth_loss = depth_loss * self.losses_dict.depth.w * decay_weight
             loss_dict.update({"depth_loss": depth_loss})
             
+        # semantic loss
+        if self.semantic_loss_cfg is not None:
+            unknown_id   = -1
+            use_iou      = self.semantic_loss_cfg.get("use_iou", True)
+            iou_w        = self.semantic_loss_cfg.get("iou_w", 1.0)
+            use_01       = self.semantic_loss_cfg.get("use_01", True)
+            loss_01_w    = self.semantic_loss_cfg.get("01_w", 0.5)
+
+            pred_semantic_labels = outputs["semantic_label"]
+            gt_semantics = image_infos["lidar_semantics_map"]
+            
+            labeled_mask = (gt_semantics != -1) & (valid_loss_mask > 0.5)
+            total_labeled = labeled_mask.float().sum().clamp_min(1.0)
+
+            # binary loss/ misclassification
+            sem_losses = {}
+            if use_01:
+                mism = (pred_semantic_labels != gt_semantics) & labeled_mask
+                sem01 = mism.float().sum() / total_labeled
+                sem_losses["semantic_01_loss"] = loss_01_w * sem01
+
+            # mIoU loss
+            if use_iou:
+                # infer number of classes from maps (ignore -1)
+                max_pred = (pred_semantic_labels[pred_semantic_labels != -1].max() if (pred_semantic_labels != -1).any() else torch.tensor(0, device=pred_semantic_labels.device))
+                max_gt   = (gt_semantics[gt_semantics != -1].max() if (gt_semantics   != -1).any() else torch.tensor(0, device=gt_semantics.device))
+                num_classes = int(torch.max(max_pred, max_gt).item()) + 1
+
+                # which class ids to include in IoU
+                classes = torch.arange(num_classes, device=pred_semantic_labels.device)
+
+                ious = []
+                for c in classes.tolist():
+                    pred_c = (pred_semantic_labels == c) & labeled_mask
+                    gt_c   = (gt_semantics   == c) & labeled_mask
+                    inter = (pred_c & gt_c).sum().float()
+                    union = (pred_c | gt_c).sum().float()
+                    if union > 0:
+                        ious.append((inter / union).clamp(0.0, 1.0))
+
+                if len(ious) > 0:
+                    miou = torch.stack(ious).mean()
+                    iou_loss = (1.0 - miou)
+                else:
+                    # no supervised pixels for any class this step -> no signal
+                    iou_loss = pred_semantic_labels.new_tensor(0.0)
+
+                sem_losses["semantic_iou_loss"] = iou_w * iou_loss
+
+            if len(sem_losses) > 0:
+                total_sem = sum(sem_losses.values())
+                # main weighted semantic term (uses your global weight)
+                loss_dict["semantic_loss"] = self.losses_dict.semantic.w * total_sem
+                # also expose components for logging/inspection
+                loss_dict.update(sem_losses)
+
         # ----- reg loss -----
         opacity_entropy_reg = self.losses_dict.get("opacity_entropy", None)
         if opacity_entropy_reg is not None:
