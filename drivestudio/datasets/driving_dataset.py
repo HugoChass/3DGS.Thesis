@@ -650,6 +650,7 @@ class DrivingDataset(SceneDataset):
         """
         for cam in self.pixel_source.camera_data.values():
             lidar_depth_maps = []
+            lidar_semantic_maps = []
             for frame_idx in tqdm(
                 range(len(cam)), 
                 desc="Projecting lidar pts on images for camera {}".format(cam.cam_name),
@@ -704,6 +705,11 @@ class DrivingDataset(SceneDataset):
                     _cam_points[:, 1].long(), _cam_points[:, 0].long()
                 ] = depth.squeeze(-1)
                 lidar_depth_maps.append(depth_map)
+
+                semantics = lidar_infos["lidar_semantics"][valid_mask]
+                semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=-1, device=self.device)
+                semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics
+                lidar_semantic_maps.append(semantic_map)
                 
                 # used to filter out the lidar points that are visible from the camera
                 visible_indices = torch.arange(
@@ -721,6 +727,8 @@ class DrivingDataset(SceneDataset):
             cam.load_depth(
                 torch.stack(lidar_depth_maps, dim=0).to(self.device).float()
             )
+
+            cam.load_semantics(torch.stack(lidar_semantic_maps, dim=0).to(self.device))
             
         if delete_out_of_view_points:
             self.lidar_source.delete_invisible_pts()
