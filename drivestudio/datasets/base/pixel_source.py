@@ -141,6 +141,7 @@ class CameraData(object):
             self.load_sky_masks()
         self.lidar_depth_maps = None # will be loaded by: self.load_depth()
         self.image_error_maps = None # will be built by: self.build_image_error_buffer()
+        self.lidar_semantics_maps = None
         self.to(self.device)
         self.downscale_factor = 1.0
         
@@ -379,7 +380,13 @@ class CameraData(object):
         lidar_depth_maps: Tensor,
     ):
         self.lidar_depth_maps = lidar_depth_maps.to(self.device)
-        
+    
+    def load_semantics(
+        self,
+        lidar_semantics_maps: Tensor,
+    ):
+        self.lidar_semantics_maps = lidar_semantics_maps.to(self.device)
+
     def load_time(
         self,
         normalized_time: Tensor,
@@ -471,6 +478,8 @@ class CameraData(object):
             self.sky_masks = self.sky_masks.to(device)
         if self.lidar_depth_maps is not None:
             self.lidar_depth_maps = self.lidar_depth_maps.to(device)
+        if self.lidar_semantics_maps is not None:
+            self.lidar_semantics_maps = self.lidar_semantics_maps.to(device)
         if self.image_error_maps is not None:
             self.image_error_maps = self.image_error_maps.to(device)
     
@@ -600,6 +609,9 @@ class CameraData(object):
                 # else:
                 lidar_depth_map = sparse_lidar_map_downsampler(lidar_depth_map, self.downscale_factor)
 
+        if self.lidar_semantics_maps is not None:
+            lidar_semantics_map = self.lidar_semantics_maps[frame_idx]
+
         if self.normalized_time is not None:
             normalized_time = torch.full(
                 (img_height, img_width),
@@ -643,6 +655,7 @@ class CameraData(object):
             "vehicle_masks": vehicle_mask,
             "egocar_masks": egocar_mask,
             "lidar_depth_map": lidar_depth_map,
+            "lidar_semantics_map": lidar_semantics_map,
         }
         image_infos = {k: v for k, v in _image_infos.items() if v is not None}
         
