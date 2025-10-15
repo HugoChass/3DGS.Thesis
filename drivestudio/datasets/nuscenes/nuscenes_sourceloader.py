@@ -455,6 +455,7 @@ class NuScenesLiDARSource(SceneLidarSource):
             "lidar_ranges": ranges,
             "lidar_normed_time": normalized_time,
             "lidar_mask": self.timesteps == time_idx,
+            "lidar_semantics": self.semantics[self.timesteps == time_idx]
         }
         
     def delete_invisible_pts(self) -> None:
