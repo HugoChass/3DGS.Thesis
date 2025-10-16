@@ -91,6 +91,51 @@ def sparse_lidar_map_downsampler(lidar_depth_map, downscale_factor):
     downsampled_lidar_map[raw_mask > 0] = raw_avg[raw_mask > 0] / raw_mask[raw_mask > 0]
     return downsampled_lidar_map
 
+import torch
+import torch.nn.functional as F
+
+def downsample_sparse_mode_block(sem_map: torch.Tensor,
+                                 factor: int,
+                                 num_classes: int,
+                                 min_valid: int = 1,
+                                 ignore_index: int = -1) -> torch.Tensor:
+    """
+    Block-mode downsampling that ignores -1.
+    - sem_map: HxW int tensor with -1 for unlabeled.
+    - factor: integer downscale (2,3,...).
+    - num_classes: number of semantic classes (max label + 1).
+    - min_valid: minimal count of valid pixels needed in a block; else -> -1.
+    """
+    assert sem_map.dim() == 2, "Expected HxW"
+    H, W = sem_map.shape
+    H2 = (H // factor) * factor
+    W2 = (W // factor) * factor
+    x = sem_map[:H2, :W2].to(torch.int64)                       # (H2,W2)
+
+    # Unfold into non-overlapping factor×factor patches: shape (1, K, L)
+    # K = factor*factor, L = (H2/factor)*(W2/factor)
+    patches = F.unfold(x.view(1, 1, H2, W2).float(),
+                       kernel_size=factor, stride=factor)       # (1, K, L)
+    patches = patches.squeeze(0).to(torch.int64)                # (K, L)
+
+    labels = patches                                           # (K, L)
+    valid  = (labels >= 0).to(labels.dtype)                    # (K, L)
+    labels_clamped = labels.clamp_min(0)                       # map -1→0; will be zeroed by valid
+
+    L = labels.shape[1]
+    counts = torch.zeros(L, num_classes, device=labels.device, dtype=torch.int64)  # (L,C)
+    counts.scatter_add_(1, labels_clamped.t(), valid.t())      # add 1 for each valid label
+
+    total_valid = valid.t().sum(dim=1)                         # (L,)
+    mode = torch.argmax(counts, dim=1)                         # (L,)
+
+    # Where not enough valid pixels, set to ignore_index
+    out_flat = torch.where(total_valid >= min_valid, mode, torch.full_like(mode, ignore_index))
+
+    # Back to H/f x W/f
+    out = out_flat.view(H2 // factor, W2 // factor)
+    return out.to(sem_map.dtype)
+
 class CameraData(object):
     def __init__(
         self,
@@ -612,7 +657,8 @@ class CameraData(object):
         if self.lidar_semantics_maps is not None:
             lidar_semantics_map = self.lidar_semantics_maps[frame_idx]
             if self.downscale_factor != 1.0:
-                lidar_semantics_map = sparse_lidar_map_downsampler(lidar_semantics_map, self.downscale_factor)
+                pass
+                #lidar_semantics_map, self.downscale_factor
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
