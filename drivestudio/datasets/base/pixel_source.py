@@ -12,6 +12,8 @@ from PIL import Image
 import torch
 from torch import Tensor
 from datasets.dataset_meta import DATASETS_CONFIG
+import torch.nn.functional as F
+import math
 
 logger = logging.getLogger()
 
@@ -91,50 +93,38 @@ def sparse_lidar_map_downsampler(lidar_depth_map, downscale_factor):
     downsampled_lidar_map[raw_mask > 0] = raw_avg[raw_mask > 0] / raw_mask[raw_mask > 0]
     return downsampled_lidar_map
 
-import torch
-import torch.nn.functional as F
-
-def downsample_sparse_mode_block(sem_map: torch.Tensor,
-                                 factor: int,
-                                 num_classes: int,
-                                 min_valid: int = 1,
-                                 ignore_index: int = -1) -> torch.Tensor:
-    """
-    Block-mode downsampling that ignores -1.
-    - sem_map: HxW int tensor with -1 for unlabeled.
-    - factor: integer downscale (2,3,...).
-    - num_classes: number of semantic classes (max label + 1).
-    - min_valid: minimal count of valid pixels needed in a block; else -> -1.
-    """
-    assert sem_map.dim() == 2, "Expected HxW"
+def downsample_sparse_mode_block_to_size(sem_map, factor: int, num_classes: int,
+                                         min_valid: int = 1, ignore_index: int = -1,
+                                         target_h: int = None, target_w: int = None):
     H, W = sem_map.shape
-    H2 = (H // factor) * factor
-    W2 = (W // factor) * factor
-    x = sem_map[:H2, :W2].to(torch.int64)                       # (H2,W2)
+    if target_h is None or target_w is None:
+        target_h = H // factor
+        target_w = W // factor
 
-    # Unfold into non-overlapping factor×factor patches: shape (1, K, L)
-    # K = factor*factor, L = (H2/factor)*(W2/factor)
-    patches = F.unfold(x.view(1, 1, H2, W2).float(),
-                       kernel_size=factor, stride=factor)       # (1, K, L)
-    patches = patches.squeeze(0).to(torch.int64)                # (K, L)
+    # pad to multiples so unfold works
+    need_h = math.ceil(target_h * factor)  # covers partial bottom
+    need_w = math.ceil(target_w * factor)  # covers partial right
+    pad_h = need_h - H
+    pad_w = need_w - W
+    if pad_h > 0 or pad_w > 0:
+        # pad bottom/right with ignore (-1)
+        sem_map = F.pad(sem_map, (0, pad_w, 0, pad_h), value=ignore_index)
 
-    labels = patches                                           # (K, L)
-    valid  = (labels >= 0).to(labels.dtype)                    # (K, L)
-    labels_clamped = labels.clamp_min(0)                       # map -1→0; will be zeroed by valid
+    H2, W2 = sem_map.shape
+    # standard block-mode ignoring -1
+    x = sem_map[:target_h*factor, :target_w*factor].to(torch.int64)
+    patches = F.unfold(x.view(1,1,target_h*factor, target_w*factor).float(),
+                       kernel_size=factor, stride=factor).squeeze(0).to(torch.int64)  # (K,L)
+    valid = (patches >= 0).to(torch.int64)
+    labels = patches.clamp_min(0)
 
-    L = labels.shape[1]
-    counts = torch.zeros(L, num_classes, device=labels.device, dtype=torch.int64)  # (L,C)
-    counts.scatter_add_(1, labels_clamped.t(), valid.t())      # add 1 for each valid label
-
-    total_valid = valid.t().sum(dim=1)                         # (L,)
-    mode = torch.argmax(counts, dim=1)                         # (L,)
-
-    # Where not enough valid pixels, set to ignore_index
-    out_flat = torch.where(total_valid >= min_valid, mode, torch.full_like(mode, ignore_index))
-
-    # Back to H/f x W/f
-    out = out_flat.view(H2 // factor, W2 // factor)
-    return out.to(sem_map.dtype)
+    L = patches.shape[1]
+    counts = torch.zeros(L, num_classes, device=labels.device, dtype=torch.int64)
+    counts.scatter_add_(1, labels.t(), valid.t())
+    total_valid = valid.t().sum(1)
+    mode = torch.argmax(counts, 1)
+    out = torch.where(total_valid >= min_valid, mode, torch.full_like(mode, ignore_index))
+    return out.view(target_h, target_w).to(sem_map.dtype)
 
 class CameraData(object):
     def __init__(
@@ -657,7 +647,8 @@ class CameraData(object):
         if self.lidar_semantics_maps is not None:
             lidar_semantics_map = self.lidar_semantics_maps[frame_idx]
             if self.downscale_factor != 1.0:
-                lidar_semantics_map = downsample_sparse_mode_block(lidar_semantics_map, self.downscale_factor, 32)
+                targ_h, targ_w = lidar_depth_map.shape
+                lidar_semantics_map = downsample_sparse_mode_block_to_size(lidar_semantics_map, self.downscale_factor, 32, target_h=targ_h, target_w=targ_w)
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
