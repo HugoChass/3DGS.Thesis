@@ -538,7 +538,7 @@ class BasicTrainer(nn.Module):
         probs = m_all / (m_all.sum(dim=-1, keepdim=True) + 1e-6)          # closed simplex
 
         # For display-only labels (no grad):
-        probs_vis = probs[..., :num_classes+1]                   # drop unknown (and bg) for argmax
+        probs_vis = probs[..., :num_classes+2]                   # drop unknown (and bg) for argmax
         labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
         labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
         labels_rgb = palette[labels_safe.view(-1)].view(H, W, 3).clone()
