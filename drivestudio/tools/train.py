@@ -159,6 +159,7 @@ def main(args):
         # "SMPLNodes_depths",
         # "mask",
         "semantics_rgbs",
+        "semantics_rgbs_no_unlabelled"
     ]
     if cfg.render.vis_lidar:
         render_keys.insert(0, "lidar_on_images")
