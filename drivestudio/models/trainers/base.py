@@ -711,9 +711,9 @@ class BasicTrainer(nn.Module):
         # semantic loss
         if self.semantic_loss_cfg is not None:
             unknown_id   = -1
-            use_iou      = self.semantic_loss_cfg.get("use_iou", True)
+            use_iou      = self.semantic_loss_cfg.get("use_iou", False)
             iou_w        = self.semantic_loss_cfg.get("iou_w", 1.0)
-            use_01       = self.semantic_loss_cfg.get("use_01", True)
+            use_01       = self.semantic_loss_cfg.get("use_01", False)
             loss_01_w    = self.semantic_loss_cfg.get("01_w", 0.5)
             use_ce       = self.semantic_loss_cfg.get("use_ce", True)
             semce        = self.semantic_loss_cfg.get("ce", 1.0)
@@ -787,7 +787,7 @@ class BasicTrainer(nn.Module):
             if len(sem_losses) > 0:
                 total_sem = sum(sem_losses.values())
                 # main weighted semantic term (uses your global weight)
-                loss_dict["semantic_loss"] = self.losses_dict.semantics.w * total_sem
+                #loss_dict["semantic_loss"] = self.losses_dict.semantics.w * total_sem
                 # also expose components for logging/inspection
                 loss_dict.update(sem_losses)
 
