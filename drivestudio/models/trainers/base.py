@@ -490,7 +490,7 @@ class BasicTrainer(nn.Module):
 
         # Output tensor
         class_alphas = []
-        class_ids = list(range(num_classes)) #+ [-1]
+        class_ids = list(range(num_classes)) + [-1]
         for k in class_ids:
             mask_k = (gs.semantics == k).float()  # [N]
             # Render class-k coverage. RGB equals accumulated alpha because colors=1.
