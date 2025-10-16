@@ -107,11 +107,9 @@ def downsample_sparse_mode_anyscale(sem_map: torch.Tensor,
     """
     assert sem_map.dim() == 2
     H, W = sem_map.shape
-    print("H, W", H, W)
     # 1) Downsample valid mask via area (exact size match with your mask code)
     valid = (sem_map >= 0).float().view(1, 1, H, W)
     valid_small = F.interpolate(valid, scale_factor=scale, mode="area")  # 1x1xhxw
-    print("valid_small", valid_small.shape)
     # 2) One-hot of labels (mask out -1 so it doesn't vote)
     lab = sem_map.clone()
     lab[lab < 0] = 0
@@ -130,7 +128,6 @@ def downsample_sparse_mode_anyscale(sem_map: torch.Tensor,
 
     out = mode_idx.squeeze(0).squeeze(0).to(torch.int64)                      # hxw
     out = torch.where(is_valid.squeeze(0).squeeze(0), out, torch.full_like(out, ignore_index))
-    print("out", out.shape)
     return out.to(sem_map.dtype)
 
 class CameraData(object):
