@@ -93,45 +93,45 @@ def sparse_lidar_map_downsampler(lidar_depth_map, downscale_factor):
     downsampled_lidar_map[raw_mask > 0] = raw_avg[raw_mask > 0] / raw_mask[raw_mask > 0]
     return downsampled_lidar_map
 
-def downsample_sparse_mode_block_to_size(sem_map, factor: int, num_classes: int,
-                                         min_valid: int = 1, ignore_index: int = -1,
-                                         target_h: int = None, target_w: int = None):
+def downsample_sparse_mode_anyscale(sem_map: torch.Tensor,
+                                    scale: float,
+                                    num_classes: int,
+                                    ignore_index: int = -1,
+                                    valid_thresh: float = 0.0) -> torch.Tensor:
+    """
+    Downsample sparse labels for arbitrary scale (e.g., 0.25) using area resampling.
+    - sem_map: HxW int tensor with -1 for unlabeled
+    - scale: e.g., 0.25
+    - num_classes: number of valid classes (e.g., 32 for labels 0..31)
+    - valid_thresh: threshold on downsampled valid fraction; 0.0 means "any coverage"
+    """
+    assert sem_map.dim() == 2
     H, W = sem_map.shape
-    print("H,W", H, W)
-    print("factor", factor, type(factor))
-    print("target_h",target_h,type(target_h))
-    print("target_w",target_w,type(target_w))
+    print("H, W", H, W)
+    # 1) Downsample valid mask via area (exact size match with your mask code)
+    valid = (sem_map >= 0).float().view(1, 1, H, W)
+    valid_small = F.interpolate(valid, scale_factor=scale, mode="area")  # 1x1xhxw
+    print("valid_small", valid_small.shape)
+    # 2) One-hot of labels (mask out -1 so it doesn't vote)
+    lab = sem_map.clone()
+    lab[lab < 0] = 0
+    one_hot = F.one_hot(lab.to(torch.int64), num_classes=num_classes)         # HxWxC
+    one_hot = one_hot.permute(2, 0, 1).unsqueeze(0).float()                   # 1xC xH xW
+    one_hot = one_hot * valid                                                 # zero-out unlabeled
 
-    if target_h is None or target_w is None:
-        target_h = H // factor
-        target_w = W // factor
+    # 3) Area-resample per-class maps to target size
+    cls_small = F.interpolate(one_hot, scale_factor=scale, mode="area")       # 1xC xh xw
 
-    # pad to multiples so unfold works
-    need_h = math.ceil(target_h * factor)  # covers partial bottom
-    need_w = math.ceil(target_w * factor)  # covers partial right
-    print("need_h", need_h, type(need_h))
-    print("need_w", need_w, type(need_w))
-    pad_h = need_h - H
-    pad_w = need_w - W
-    print("pads", pad_h, pad_w)
-    if pad_h > 0 or pad_w > 0:
-        sem_map = F.pad(sem_map, (pad_w/2, pad_w/2, pad_h/2, pad_h/2), value=ignore_index)
-    print("padded sem", sem_map.shape)
-    H2, W2 = sem_map.shape
-    # standard block-mode ignoring -1
-    x = sem_map[:target_h*factor, :target_w*factor].to(torch.int64)
-    patches = F.unfold(x.view(1,1,target_h*factor, target_w*factor).float(),
-                       kernel_size=factor, stride=factor).squeeze(0).to(torch.int64)  # (K,L)
-    valid = (patches >= 0).to(torch.int64)
-    labels = patches.clamp_min(0)
+    # 4) Choose class with largest averaged coverage
+    mode_idx = cls_small.argmax(dim=1, keepdim=True)                          # 1x1xhxw
 
-    L = patches.shape[1]
-    counts = torch.zeros(L, num_classes, device=labels.device, dtype=torch.int64)
-    counts.scatter_add_(1, labels.t(), valid.t())
-    total_valid = valid.t().sum(1)
-    mode = torch.argmax(counts, 1)
-    out = torch.where(total_valid >= min_valid, mode, torch.full_like(mode, ignore_index))
-    return out.view(target_h, target_w).to(sem_map.dtype)
+    # 5) Apply validity threshold (match your mask behavior: >0 ⇒ at least one contributing pixel)
+    is_valid = (valid_small > valid_thresh)
+
+    out = mode_idx.squeeze(0).squeeze(0).to(torch.int64)                      # hxw
+    out = torch.where(is_valid.squeeze(0).squeeze(0), out, torch.full_like(out, ignore_index))
+    print("out", out.shape)
+    return out.to(sem_map.dtype)
 
 class CameraData(object):
     def __init__(
@@ -655,7 +655,7 @@ class CameraData(object):
             lidar_semantics_map = self.lidar_semantics_maps[frame_idx]
             if self.downscale_factor != 1.0:
                 targ_h, targ_w = lidar_depth_map.shape
-                lidar_semantics_map = downsample_sparse_mode_block_to_size(lidar_semantics_map, self.downscale_factor, 32, target_h=targ_h, target_w=targ_w)
+                lidar_semantics_map = downsample_sparse_mode_anyscale(lidar_semantics_map, self.downscale_factor, 32)
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
