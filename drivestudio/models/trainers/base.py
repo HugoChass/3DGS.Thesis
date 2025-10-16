@@ -668,7 +668,7 @@ class BasicTrainer(nn.Module):
 
             pred_semantic_labels = outputs["semantic_label"]
             gt_semantics = image_infos["lidar_semantics_map"]
-            labeled_mask = (gt_semantics != -1).float()
+            labeled_mask = (gt_semantics != -1).bool()
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
             print("pred_semantic_labels", pred_semantic_labels.shape)
             print("gt_semantics", gt_semantics.shape)
