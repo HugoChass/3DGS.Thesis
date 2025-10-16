@@ -534,7 +534,7 @@ class BasicTrainer(nn.Module):
         m_bg_empty = (1.0 - alpha_total).clamp_min(0.0)[..., None]  # [H,W,1]
 
         # probs over K + 1 (+1) classes
-        m_all = torch.cat([class_masses, m_unknown, m_bg_empty], dim=-1)  # [H,W,K+2]
+        m_all = torch.cat([class_masses, m_bg_empty, m_unknown], dim=-1)  # [H,W,K+2]
         probs = m_all / (m_all.sum(dim=-1, keepdim=True) + 1e-6)          # closed simplex
 
         # For display-only labels (no grad):
@@ -546,6 +546,18 @@ class BasicTrainer(nn.Module):
         unl_mask = (labels == -1)
         if unl_mask.any():
             labels_rgb[unl_mask] = unlabeled_color
+
+        # For display-only labels (no grad):
+        probs_vis = probs[..., :num_classes+2]                   # drop unknown (and bg) for argmax
+        labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
+        labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
+        labels_rgb = palette[labels_safe.view(-1)].view(H, W, 3).clone()
+
+        # For display-only labels (no grad) no unlabelled:
+        probs_vis = probs[..., :num_classes+1]                   # drop unknown (and bg) for argmax
+        labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
+        labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
+        labels_rgb_no_unlabelled = palette[labels_safe.view(-1)].view(H, W, 3).clone()
 
         # # Colorize the hard label map
         # safe = torch.clamp(labels, min=0)                               # map -1 -> 0 for indexing
@@ -559,6 +571,7 @@ class BasicTrainer(nn.Module):
             "semantic_probs": probs,           # [H,W,K]
             "semantic_label": labels,         # [H,W] int64, -1 for background
             "semantic_rgb": labels_rgb, # [H,W,3] float in [0,1]
+            "semantic_rgb_no_unlabelled": labels_rgb_no_unlabelled
         })
 
         return results, render_fn
