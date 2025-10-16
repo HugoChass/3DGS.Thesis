@@ -667,8 +667,7 @@ class BasicTrainer(nn.Module):
 
             pred_semantic_labels = outputs["semantic_label"]
             gt_semantics = image_infos["lidar_semantics_map"]
-            
-            labeled_mask = (gt_semantics != -1) & (valid_loss_mask > 0.5)
+            labeled_mask = (gt_semantics != -1).float() * valid_loss_mask
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
 
             # binary loss/ misclassification
