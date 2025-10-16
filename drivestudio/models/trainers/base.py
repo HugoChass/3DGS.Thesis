@@ -489,25 +489,40 @@ class BasicTrainer(nn.Module):
         ones_color = torch.ones_like(gs.rgbs)  # [N,3]
 
         # Output tensor
-        class_alphas = []
-        class_ids = list(range(num_classes)) + [-1]
-        for k in class_ids:
-            mask_k = (gs.semantics == k).float()  # [N]
-            # Render class-k coverage. RGB equals accumulated alpha because colors=1.
-            rgb_k, _, _ = render_fn(opaticy_mask=mask_k, override_colors=ones_color)
-            # Any channel is fine; they are identical.
-            class_alpha_k = rgb_k[..., 0]  # [H,W]
-            class_alphas.append(class_alpha_k)
+        # class_alphas = []
+        # class_ids = list(range(num_classes))# + [-1]
+        # for k in class_ids:
+        #     mask_k = (gs.semantics == k).float()  # [N]
+        #     # Render class-k coverage. RGB equals accumulated alpha because colors=1.
+        #     rgb_k, _, _ = render_fn(opaticy_mask=mask_k, override_colors=ones_color)
+        #     # Any channel is fine; they are identical.
+        #     class_alpha_k = rgb_k[..., 0]  # [H,W]
+        #     class_alphas.append(class_alpha_k)
 
-        class_alphas = torch.stack(class_alphas, dim=-1)  # [H,W,K]
-        # probabilities conditioned on being non-background:
-        eps = 1e-6
-        probs = class_alphas / (alpha_total.unsqueeze(-1) + eps)  # [H,W,K]
-        # Hard labels
-        idx = torch.argmax(probs, dim=-1)
-        class_ids_tensor = torch.tensor(class_ids, device=device, dtype=torch.long)
-        labels = class_ids_tensor[idx]   
+        # class_alphas = torch.stack(class_alphas, dim=-1)  # [H,W,K]
+        # # probabilities conditioned on being non-background:
+        # eps = 1e-6
+        # probs = class_alphas / (alpha_total.unsqueeze(-1) + eps)  # [H,W,K]
+        # # Hard labels
+        # idx = torch.argmax(probs, dim=-1)
+        # class_ids_tensor = torch.tensor(class_ids, device=device, dtype=torch.long)
+        # labels = class_ids_tensor[idx]   
         
+        class_alphas = []
+        class_ids = list(range(num_classes))# + [-1]
+        for k in class_ids:
+            mask_k = (gs.semantics == k).float()                  # [N]
+            class_color = mask_k[:, None].expand(-1, 3)           # [N,3], 1 for class-k Gaussians, else 0
+            # Keep opacities unchanged; encode class via colors
+            rgb_k, _, _ = render_fn(opaticy_mask=None, override_colors=class_color)
+            m_k = rgb_k[..., 0]                                   # any channel works; equals sum T_i w_i 1[ℓ_i=k]
+            class_alphas.append(m_k)
+
+        class_masses = torch.stack(class_alphas, dim=-1)          # [H,W,K]
+        alpha_total = opacity.squeeze(-1)                          # [H,W] = total foreground mass = Σ_k m_k (now correct)
+        probs = class_masses / (alpha_total.unsqueeze(-1) + 1e-6)  # [H,W,K]
+        labels = probs.detach().argmax(dim=-1)  # [H,W]
+
         # Colorize the hard label map
         safe = torch.clamp(labels, min=0)                               # map -1 -> 0 for indexing
         palette = palette.to(device=device, dtype=dtype)
@@ -668,7 +683,7 @@ class BasicTrainer(nn.Module):
             gt_semantics = image_infos["lidar_semantics_map"]
             labeled_mask = (gt_semantics != -1).bool()
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
-            
+
             # binary loss/ misclassification
             sem_losses = {}
             if use_01:
