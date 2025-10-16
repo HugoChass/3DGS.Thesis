@@ -623,8 +623,6 @@ class BasicTrainer(nn.Module):
         else:
             valid_loss_mask = torch.ones_like(image_infos["sky_masks"])
         gt_rgb = image_infos["pixels"] * valid_loss_mask[..., None]
-        print("gt_rgb before", image_infos["pixels"].shape)    
-        print("gt_rgb after", gt_rgb.shape)
         predicted_rgb = outputs["rgb"] * valid_loss_mask[..., None]
         
         gt_occupied_mask = (1.0 - image_infos["sky_masks"]).float() * valid_loss_mask
@@ -670,11 +668,7 @@ class BasicTrainer(nn.Module):
             gt_semantics = image_infos["lidar_semantics_map"]
             labeled_mask = (gt_semantics != -1).bool()
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
-            print("pred_semantic_labels", pred_semantic_labels.shape)
-            print("gt_semantics", gt_semantics.shape)
-            print("labeled_mask", labeled_mask.shape, labeled_mask)
-            print("total_labeled", total_labeled)
-
+            
             # binary loss/ misclassification
             sem_losses = {}
             if use_01:
