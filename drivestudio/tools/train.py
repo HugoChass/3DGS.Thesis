@@ -7,6 +7,7 @@ import random
 import imageio
 import logging
 import argparse
+import json
 
 import torch
 from tools.eval import do_evaluation
@@ -176,7 +177,7 @@ def main(args):
 
     # setup semantic logger
     semantic_log_file = os.path.join(cfg.log_dir, "semanticlog.json")
-    semantic_logger = MetricLogger(delimiter="  ", output_file=semantic_log_file)
+    semantic_log = []
     
     # DEBUG USE
     # do_evaluation(
@@ -256,27 +257,13 @@ def main(args):
             # Count the number of each label in total_semantics
             label_counts = Counter(total_semantics)
 
-            # Log like the rest of your metrics
-            # total count
-            semantic_logger.update(**{
-                "semantic_stats/total_gaussians": len(total_semantics)
-            })
-
-            # per-label counts (stable ordering)
-            semantic_logger.update(**{
-                f"semantic_stats/label_{int(lbl)}": int(cnt)
-                for lbl, cnt in sorted(label_counts.items())
-            })
-
-            # also log normalized fractions for easy charts in W&B
-            total = max(len(total_semantics), 1)
-            semantic_logger.update(**{
-                f"semantic_stats/frac_label_{int(lbl)}": cnt / total
-                for lbl, cnt in sorted(label_counts.items())
-            })
-
-            if args.enable_wandb:
-                wandb.log({k: v.avg for k, v in semantic_logger.meters.items()})
+            record = {"iterations": step,
+                      "total_gaussians": len(total_semantics)}
+            
+            for lbl, cnt in sorted(label_counts.items()):
+                record[f"label_{int(lbl)}"] = int(cnt)
+            
+            semantic_log.append(record)
         
         #----------------------------------------------------------------------------
         #----------------------------  training step  -------------------------------
@@ -374,7 +361,9 @@ def main(args):
                 )
             logger.info("Done caching rgb error maps")
             
-    
+    with open(semantic_log_file, "w", encoding="utf-8") as f:
+        json.dump(semantic_log, f, indent=2, ensure_ascii=False)
+
     logger.info("Training done!")
 
     do_evaluation(
