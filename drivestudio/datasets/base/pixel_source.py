@@ -97,6 +97,11 @@ def downsample_sparse_mode_block_to_size(sem_map, factor: int, num_classes: int,
                                          min_valid: int = 1, ignore_index: int = -1,
                                          target_h: int = None, target_w: int = None):
     H, W = sem_map.shape
+    print("H,W", H, W)
+    print("factor", factor, type(factor))
+    print("target_h",target_h,type(target_h))
+    print("target_w",target_w,type(target_w))
+
     if target_h is None or target_w is None:
         target_h = H // factor
         target_w = W // factor
@@ -104,12 +109,14 @@ def downsample_sparse_mode_block_to_size(sem_map, factor: int, num_classes: int,
     # pad to multiples so unfold works
     need_h = math.ceil(target_h * factor)  # covers partial bottom
     need_w = math.ceil(target_w * factor)  # covers partial right
+    print("need_h", need_h, type(need_h))
+    print("need_w", need_w, type(need_w))
     pad_h = need_h - H
     pad_w = need_w - W
+    print("pads", pad_h, pad_w)
     if pad_h > 0 or pad_w > 0:
-        # pad bottom/right with ignore (-1)
-        sem_map = F.pad(sem_map, (0, pad_w, 0, pad_h), value=ignore_index)
-
+        sem_map = F.pad(sem_map, (pad_w/2, pad_w/2, pad_h/2, pad_h/2), value=ignore_index)
+    print("padded sem", sem_map.shape)
     H2, W2 = sem_map.shape
     # standard block-mode ignoring -1
     x = sem_map[:target_h*factor, :target_w*factor].to(torch.int64)
