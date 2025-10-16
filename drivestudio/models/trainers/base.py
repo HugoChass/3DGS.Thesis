@@ -678,8 +678,11 @@ class BasicTrainer(nn.Module):
             iou_w        = self.semantic_loss_cfg.get("iou_w", 1.0)
             use_01       = self.semantic_loss_cfg.get("use_01", True)
             loss_01_w    = self.semantic_loss_cfg.get("01_w", 0.5)
+            use_ce       = self.semantic_loss_cfg.get("use_ce", True)
+            semce        = self.semantic_loss_cfg.get("ce", 1.0)
 
             pred_semantic_labels = outputs["semantic_label"]
+            pred_semantic_probs = outputs["semantic_probs"]
             gt_semantics = image_infos["lidar_semantics_map"]
             labeled_mask = (gt_semantics != -1).bool()
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
@@ -719,6 +722,31 @@ class BasicTrainer(nn.Module):
 
                 sem_losses["semantic_iou_loss"] = iou_w * iou_loss
 
+            # CE loss
+            if use_ce:
+                eps = 1e-8
+                H, W, K = pred_semantic_probs.shape
+
+                # Flatten for easy masked gather
+                probs_flat = pred_semantic_probs.view(-1, K)                  # [HW, K]
+                gt_flat    = gt_semantics.view(-1)                            # [HW]
+                mask_flat  = labeled_mask.view(-1)                            # [HW]
+
+                # Keep only labeled pixels
+                idx = mask_flat.nonzero(as_tuple=False).squeeze(1)            # [N]
+                if idx.numel() > 0:
+                    probs_lab = probs_flat[idx]                               # [N, K]
+                    gt_lab    = gt_flat[idx].long()                           # [N]
+
+                    # Gather p_true for each labeled pixel
+                    p_true = probs_lab.gather(1, gt_lab.unsqueeze(1)).clamp_min(eps)  # [N, 1]
+                    loss_ce = -p_true.log().mean()
+                else:
+                    loss_ce = probs_flat.new_tensor(0.0)
+
+                sem_losses["semantic_CE_loss"] = semce * loss_ce
+
+            
             if len(sem_losses) > 0:
                 total_sem = sum(sem_losses.values())
                 # main weighted semantic term (uses your global weight)
