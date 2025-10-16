@@ -622,8 +622,8 @@ class BasicTrainer(nn.Module):
             valid_loss_mask = (1.0 - image_infos["egocar_masks"]).float()
         else:
             valid_loss_mask = torch.ones_like(image_infos["sky_masks"])
-        print("gt_rgb before", gt_rgb.shape)    
         gt_rgb = image_infos["pixels"] * valid_loss_mask[..., None]
+        print("gt_rgb before", image_infos["pixels"].shape)    
         print("gt_rgb after", gt_rgb.shape)
         predicted_rgb = outputs["rgb"] * valid_loss_mask[..., None]
         
