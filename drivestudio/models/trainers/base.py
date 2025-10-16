@@ -713,7 +713,7 @@ class BasicTrainer(nn.Module):
             if len(sem_losses) > 0:
                 total_sem = sum(sem_losses.values())
                 # main weighted semantic term (uses your global weight)
-                loss_dict["semantic_loss"] = self.losses_dict.semantic.w * total_sem
+                loss_dict["semantic_loss"] = self.losses_dict.semantics.w * total_sem
                 # also expose components for logging/inspection
                 loss_dict.update(sem_losses)
 
