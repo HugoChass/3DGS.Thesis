@@ -52,6 +52,8 @@ _PALETTE_255 = [
     (192, 192, 192),    # 29 static.other
     (34, 139, 34),      # 30 static.vegetation
     (255, 255, 255),    # 31 vehicle.ego
+    (0, 255, 0),        # 32 BACKGROUND
+    (75, 117, 117),     # 33 UNLABELLED
 ]
 # Color for unlabeled (-1)
 _UNLABELED_255 = (75, 117, 117)
@@ -485,8 +487,8 @@ class BasicTrainer(nn.Module):
         # total coverage/alpha for normalization (remove last dim)
         alpha_total = opacity.squeeze(-1)  # [H,W]
 
-        # Precompute ones_color so that RGB output equals accumulated alpha
-        ones_color = torch.ones_like(gs.rgbs)  # [N,3]
+        # # Precompute ones_color so that RGB output equals accumulated alpha
+        # ones_color = torch.ones_like(gs.rgbs)  # [N,3]
 
         # Output tensor
         # class_alphas = []
@@ -508,28 +510,50 @@ class BasicTrainer(nn.Module):
         # class_ids_tensor = torch.tensor(class_ids, device=device, dtype=torch.long)
         # labels = class_ids_tensor[idx]   
         
-        class_alphas = []
-        class_ids = list(range(num_classes))# + [-1]
+        # class ids 0..K-1  (known classes)
+        class_ids = list(range(num_classes))
+
+        # class masses for known classes
+        class_masses = []
         for k in class_ids:
-            mask_k = (gs.semantics == k).float()                  # [N]
-            class_color = mask_k[:, None].expand(-1, 3)           # [N,3], 1 for class-k Gaussians, else 0
-            # Keep opacities unchanged; encode class via colors
+            class_color = (gs.semantics == k).float()[:, None].expand(-1, 3)  # [N,3]
             rgb_k, _, _ = render_fn(opaticy_mask=None, override_colors=class_color)
-            m_k = rgb_k[..., 0]                                   # any channel works; equals sum T_i w_i 1[ℓ_i=k]
-            class_alphas.append(m_k)
+            m_k = rgb_k[..., 0]                         # [H,W]
+            class_masses.append(m_k)
+        class_masses = torch.stack(class_masses, dim=-1)  # [H,W,K]
 
-        class_masses = torch.stack(class_alphas, dim=-1)          # [H,W,K]
-        alpha_total = opacity.squeeze(-1)                          # [H,W] = total foreground mass = Σ_k m_k (now correct)
-        probs = class_masses / (alpha_total.unsqueeze(-1) + 1e-6)  # [H,W,K]
-        labels = probs.detach().argmax(dim=-1)  # [H,W]
+        # unknown gaussian mass (ℓ = -1)
+        unknown_mask = (gs.semantics == -1).float()
+        unk_color = unknown_mask[:, None].expand(-1, 3)
+        rgb_unk, _, _ = render_fn(opaticy_mask=None, override_colors=unk_color)
+        m_unknown = rgb_unk[..., 0][..., None]            # [H,W,1]
 
-        # Colorize the hard label map
-        safe = torch.clamp(labels, min=0)                               # map -1 -> 0 for indexing
-        palette = palette.to(device=device, dtype=dtype)
-        labels_rgb = palette[safe.view(-1)].view(H, W, 3).clone()       # [H,W,3]
+        alpha_total = opacity.squeeze(-1)                  # [H,W]
+
+        # (optional) empty-space background
+        m_bg_empty = (1.0 - alpha_total).clamp_min(0.0)[..., None]  # [H,W,1]
+
+        # probs over K + 1 (+1) classes
+        m_all = torch.cat([class_masses, m_unknown, m_bg_empty], dim=-1)  # [H,W,K+2]
+        probs = m_all / (m_all.sum(dim=-1, keepdim=True) + 1e-6)          # closed simplex
+
+        # For display-only labels (no grad):
+        probs_vis = probs[..., :num_classes]                   # drop unknown (and bg) for argmax
+        labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
+        labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
+        labels_rgb = palette[labels_safe.view(-1)].view(H, W, 3).clone()
+        
         unl_mask = (labels == -1)
         if unl_mask.any():
             labels_rgb[unl_mask] = unlabeled_color
+
+        # # Colorize the hard label map
+        # safe = torch.clamp(labels, min=0)                               # map -1 -> 0 for indexing
+        # palette = palette.to(device=device, dtype=dtype)
+        # labels_rgb = palette[safe.view(-1)].view(H, W, 3).clone()       # [H,W,3]
+        # unl_mask = (labels == -1)
+        # if unl_mask.any():
+        #     labels_rgb[unl_mask] = unlabeled_color
         
         results.update({
             "semantic_probs": probs,           # [H,W,K]
