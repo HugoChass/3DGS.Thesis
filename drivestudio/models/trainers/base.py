@@ -645,7 +645,6 @@ class BasicTrainer(nn.Module):
         # depth loss
         if self.depth_loss_fn is not None:
             gt_depth = image_infos["lidar_depth_map"] 
-            print(gt_depth, gt_depth.shape, (gt_depth > 0).float().shape, valid_loss_mask, valid_loss_mask.shape)
             lidar_hit_mask = (gt_depth > 0).float() * valid_loss_mask
             pred_depth = outputs["depth"]
             depth_loss = self.depth_loss_fn(pred_depth, gt_depth, lidar_hit_mask)
@@ -668,7 +667,7 @@ class BasicTrainer(nn.Module):
 
             pred_semantic_labels = outputs["semantic_label"]
             gt_semantics = image_infos["lidar_semantics_map"]
-            print(gt_semantics, gt_semantics.shape, (gt_semantics != -1).float().shape, valid_loss_mask, valid_loss_mask.shape)
+            print("gt_semantics", gt_semantics.shape, (gt_semantics != -1).float().shape, valid_loss_mask, valid_loss_mask.shape)
             labeled_mask = (gt_semantics != -1).float() * valid_loss_mask
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
 
