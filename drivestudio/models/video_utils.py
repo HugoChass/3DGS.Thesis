@@ -115,7 +115,7 @@ def render(
     Background_opacities, RigidNodes_opacities, DeformableNodes_opacities, SMPLNodes_opacities, Dynamic_opacities = [], [], [], [], []
     
     # semantics
-    semantics_labels, semantics_rgbs = [], []
+    semantics_labels, semantics_rgbs, semantics_rgbs_no_unlabelled = [], [], []
 
     # misc
     cam_names, cam_ids = [], []
@@ -235,6 +235,7 @@ def render(
             if "semantic_rgb" in results:
                 semantics_labels.append(get_numpy(results['semantic_label']))
                 semantics_rgbs.append(get_numpy(results['semantic_rgb']))
+                semantics_rgbs_no_unlabelled.append(get_numpy(results['semantic_rgb_no_unlabelled']))
 
             if compute_metrics:
                 psnr = compute_psnr(rgb, image_infos["pixels"])
@@ -390,6 +391,8 @@ def render(
         results_dict["semantics_labels"] = semantics_labels
     if len(semantics_rgbs) > 0:
         results_dict["semantics_rgbs"] = semantics_rgbs
+    if len(semantics_rgbs_no_unlabelled) > 0:
+        results_dict["semantics_rgbs_no_unlabelled"] = semantics_rgbs_no_unlabelled
     return results_dict
 
 
