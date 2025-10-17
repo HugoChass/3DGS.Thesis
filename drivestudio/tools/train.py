@@ -287,12 +287,14 @@ def main(args):
         # forward & backward
         outputs = trainer(image_infos, cam_infos)
         trainer.update_visibility_filter()
-
+        start = time.perf_counter()
         loss_dict = trainer.compute_losses(
             outputs=outputs,
             image_infos=image_infos,
             cam_infos=cam_infos,
         )
+        elapsed = time.perf_counter() - start
+        print(f"loss compute took {elapsed:.6f} s")
         # check nan or inf
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
