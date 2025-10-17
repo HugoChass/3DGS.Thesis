@@ -258,12 +258,13 @@ def main(args):
             # Count the number of each label in total_semantics
             label_counts = Counter(total_semantics)
 
-            record = {"iterations": step,
-                      "total_gaussians": len(total_semantics)}
-            
+            record = {
+                "iterations": int(step),                     # <- ensure built-in int
+                "total_gaussians": int(len(total_semantics))
+                }
             for lbl, cnt in sorted(label_counts.items()):
                 record[f"label_{int(lbl)}"] = int(cnt)
-            
+
             semantic_log.append(record)
         
         #----------------------------------------------------------------------------
