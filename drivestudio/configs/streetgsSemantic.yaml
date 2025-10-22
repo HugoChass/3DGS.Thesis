@@ -160,3 +160,9 @@ logging:
   print_freq: 500 # how often to print training stats
   saveckpt_freq: 15000 # how often to save checkpoints
   save_seperate_video: True # whether to save seperate videos for each scene
+
+# ------------- profiling ------------ #
+profile:
+  action: True
+  profile_steps: 0-30000
+  profile_every: 500
