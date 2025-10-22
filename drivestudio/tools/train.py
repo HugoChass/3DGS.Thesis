@@ -17,6 +17,7 @@ from utils.logging import MetricLogger, setup_logging
 from models.video_utils import render_images, save_videos
 from datasets.driving_dataset import DrivingDataset
 from collections import Counter
+from utils.prof import train_profiler
 
 logger = logging.getLogger()
 current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
@@ -269,43 +270,51 @@ def main(args):
         
         #----------------------------------------------------------------------------
         #----------------------------  training step  -------------------------------
-        # prepare for training
-        trainer.set_train()
-        trainer.preprocess_per_train_step(step=step)
-        trainer.optimizer_zero_grad() # zero grad
-        
-        # get data
-        train_step_camera_downscale = trainer._get_downscale_factor()
-        image_infos, cam_infos = dataset.train_image_set.next(train_step_camera_downscale)
-        for k, v in image_infos.items():
-            if isinstance(v, torch.Tensor):
-                image_infos[k] = v.cuda(non_blocking=True)
-        for k, v in cam_infos.items():
-            if isinstance(v, torch.Tensor):
-                cam_infos[k] = v.cuda(non_blocking=True)
-        
-        # forward & backward
-        outputs = trainer(image_infos, cam_infos)
-        trainer.update_visibility_filter()
-        start = time.perf_counter()
-        loss_dict = trainer.compute_losses(
-            outputs=outputs,
-            image_infos=image_infos,
-            cam_infos=cam_infos,
-        )
-        elapsed = time.perf_counter() - start
-        print(f"loss compute took {elapsed:.6f} s")
-        # check nan or inf
-        for k, v in loss_dict.items():
-            if torch.isnan(v).any():
-                raise ValueError(f"NaN detected in loss {k} at step {step}")
-            if torch.isinf(v).any():
-                raise ValueError(f"Inf detected in loss {k} at step {step}")
-        trainer.backward(loss_dict)
-        
-        # after training step
-        trainer.postprocess_per_train_step(step=step)
-        
+        profile_cfg = cfg.profile
+        with train_profiler(
+            step,
+            enable=getattr(profile_cfg, "action", False),          # toggle via config/flag
+            outdir=os.path.join(cfg.log_dir, "cprofile"),  # where to save .pstats
+            only_steps=getattr(profile_cfg, "profile_steps", ""),   # e.g. "100-110,500"
+            every_n=getattr(profile_cfg, "profile_every", None),    # e.g. 200
+            cuda_sync_fn=torch.cuda.synchronize,            # IMPORTANT for CUDA
+            ):
+            # prepare for training
+            trainer.set_train()
+            trainer.preprocess_per_train_step(step=step)
+            trainer.optimizer_zero_grad() # zero grad
+            
+            # get data
+            train_step_camera_downscale = trainer._get_downscale_factor()
+            image_infos, cam_infos = dataset.train_image_set.next(train_step_camera_downscale)
+            for k, v in image_infos.items():
+                if isinstance(v, torch.Tensor):
+                    image_infos[k] = v.cuda(non_blocking=True)
+            for k, v in cam_infos.items():
+                if isinstance(v, torch.Tensor):
+                    cam_infos[k] = v.cuda(non_blocking=True)
+            
+            # forward & backward
+            outputs = trainer(image_infos, cam_infos)
+            trainer.update_visibility_filter()
+
+            loss_dict = trainer.compute_losses(
+                outputs=outputs,
+                image_infos=image_infos,
+                cam_infos=cam_infos,
+            )
+
+            # check nan or inf
+            for k, v in loss_dict.items():
+                if torch.isnan(v).any():
+                    raise ValueError(f"NaN detected in loss {k} at step {step}")
+                if torch.isinf(v).any():
+                    raise ValueError(f"Inf detected in loss {k} at step {step}")
+            trainer.backward(loss_dict)
+            
+            # after training step
+            trainer.postprocess_per_train_step(step=step)
+            
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------
         with torch.no_grad():
