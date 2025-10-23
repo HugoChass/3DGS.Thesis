@@ -52,7 +52,7 @@ def train_profiler(step: int,
                    enable: bool = False,
                    outdir: str = "profiles",
                    only_steps: str = "",
-                   every_n: int | None = None,
+                   every_n: int = None ,
                    cuda_sync_fn=None):
     """
     Use like: with train_profiler(step, enable=cfg.profiling.enable, only_steps="100-120,500", every_n=100, cuda_sync_fn=torch.cuda.synchronize):
