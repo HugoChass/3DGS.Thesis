@@ -8,6 +8,7 @@ import imageio
 import logging
 import argparse
 import json
+import statistics
 
 import torch
 from tools.eval import do_evaluation
@@ -21,6 +22,35 @@ from utils.prof import train_profiler
 
 logger = logging.getLogger()
 current_time = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+
+# --- timing storage + helper ---
+timings = {
+    "preprocess": [],
+    "downscale": [],
+    "forward": [],
+    "loss": [],
+    "backward": [],
+    "postprocess": [],
+}
+
+def log_timing(stage: str, dt: float):
+    timings[stage].append(dt)
+
+def print_timing_summary(step: int, every: int = 50, reset_after_print: bool = False):
+    """Print mean + last value for each stage every `every` steps."""
+    if step % every != 0 or step == 0:
+        return
+    print(f"\n=== Timing summary @ step {step} (last {every if reset_after_print else 'all'} steps) ===")
+    for stage, vals in timings.items():
+        if not vals: 
+            continue
+        mean_dt = statistics.fmean(vals)
+        last_dt = vals[-1]
+        print(f"{stage:>12}: mean={mean_dt:.6f}s, last={last_dt:.6f}s, n={len(vals)}")
+    print("=" * 60)
+    if reset_after_print:
+        for k in timings:
+            timings[k].clear()
 
 def set_seeds(seed=31):
     """
@@ -279,19 +309,22 @@ def main(args):
         #     every_n=getattr(profile_cfg, "profile_every", None),    # e.g. 200
         #     cuda_sync_fn=torch.cuda.synchronize,            # IMPORTANT for CUDA
         #     ):
-        # prepare for training
+        # preprocess
         t0 = time.perf_counter()
         trainer.set_train()
         trainer.preprocess_per_train_step(step=step)
-        trainer.optimizer_zero_grad() # zero grad
+        trainer.optimizer_zero_grad()
         dt = time.perf_counter() - t0
         print("preprocess time:", dt)
-        
-        # get data
+        log_timing("preprocess", dt)
+
+        # get data / downscale
         t0 = time.perf_counter()
         train_step_camera_downscale = trainer._get_downscale_factor()
         dt = time.perf_counter() - t0
         print("downscale time:", dt)
+        log_timing("downscale", dt)
+
         image_infos, cam_infos = dataset.train_image_set.next(train_step_camera_downscale)
         for k, v in image_infos.items():
             if isinstance(v, torch.Tensor):
@@ -299,13 +332,14 @@ def main(args):
         for k, v in cam_infos.items():
             if isinstance(v, torch.Tensor):
                 cam_infos[k] = v.cuda(non_blocking=True)
-        
+
         # forward & backward
         t0 = time.perf_counter()
         outputs = trainer(image_infos, cam_infos)
         trainer.update_visibility_filter()
         dt = time.perf_counter() - t0
         print("forward time:", dt)
+        log_timing("forward", dt)
 
         t0 = time.perf_counter()
         loss_dict = trainer.compute_losses(
@@ -315,23 +349,30 @@ def main(args):
         )
         dt = time.perf_counter() - t0
         print("loss compute time:", dt)
+        log_timing("loss", dt)
 
-        # check nan or inf
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
                 raise ValueError(f"NaN detected in loss {k} at step {step}")
             if torch.isinf(v).any():
                 raise ValueError(f"Inf detected in loss {k} at step {step}")
+
         t0 = time.perf_counter()
         trainer.backward(loss_dict)
         dt = time.perf_counter() - t0
         print("backwards time:", dt)
-        # after training step
+        log_timing("backward", dt)
+
+        # postprocess
         t0 = time.perf_counter()
         trainer.postprocess_per_train_step(step=step)
         dt = time.perf_counter() - t0
         print("posprocess time:", dt)
-        
+        log_timing("postprocess", dt)
+
+        # print summary every N steps (e.g., 50)
+        print_timing_summary(step=step, every=50, reset_after_print=False)  # set True to roll a moving window
+
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------
         with torch.no_grad():
