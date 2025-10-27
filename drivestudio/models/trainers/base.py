@@ -706,7 +706,7 @@ class BasicTrainer(nn.Module):
             use_01       = self.semantic_loss_cfg.get("use_01", False)
             loss_01_w    = self.semantic_loss_cfg.get("01_w", 0.5)
             use_ce       = self.semantic_loss_cfg.get("use_ce", True)
-            semce        = self.semantic_loss_cfg.get("ce", 1.0)
+            semce        = self.semantic_loss_cfg.get("ce", 0.5)
 
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_probs = outputs["semantic_probs"]
