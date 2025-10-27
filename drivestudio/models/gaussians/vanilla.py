@@ -265,7 +265,6 @@ class VanillaGaussians(nn.Module):
                 self._opacities = Parameter(torch.cat([self._opacities.detach(), split_opacities, dup_opacities], dim=0))
                 self._scales = Parameter(torch.cat([self._scales.detach(), split_scales, dup_scales], dim=0))
                 self._quats = Parameter(torch.cat([self._quats.detach(), split_quats, dup_quats], dim=0))
-                print(self._semantics.shape, self._semantics.detach().shape, split_semantics.shape, dup_semantics.shape)
                 self._semantics = Parameter(torch.cat([self._semantics.detach(), split_semantics, dup_semantics], dim=0)) # NEW
                 
                 # append zeros to the max_2Dsize tensor
