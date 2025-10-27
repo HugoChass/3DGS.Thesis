@@ -280,12 +280,18 @@ def main(args):
         #     cuda_sync_fn=torch.cuda.synchronize,            # IMPORTANT for CUDA
         #     ):
         # prepare for training
+        t0 = time.perf_counter()
         trainer.set_train()
         trainer.preprocess_per_train_step(step=step)
         trainer.optimizer_zero_grad() # zero grad
+        dt = time.perf_counter() - t0
+        print("preprocess time:", dt)
         
         # get data
+        t0 = time.perf_counter()
         train_step_camera_downscale = trainer._get_downscale_factor()
+        dt = time.perf_counter() - t0
+        print("downscale time:", dt)
         image_infos, cam_infos = dataset.train_image_set.next(train_step_camera_downscale)
         for k, v in image_infos.items():
             if isinstance(v, torch.Tensor):
@@ -295,14 +301,20 @@ def main(args):
                 cam_infos[k] = v.cuda(non_blocking=True)
         
         # forward & backward
+        t0 = time.perf_counter()
         outputs = trainer(image_infos, cam_infos)
         trainer.update_visibility_filter()
+        dt = time.perf_counter() - t0
+        print("forward time:", dt)
 
+        t0 = time.perf_counter()
         loss_dict = trainer.compute_losses(
             outputs=outputs,
             image_infos=image_infos,
             cam_infos=cam_infos,
         )
+        dt = time.perf_counter() - t0
+        print("loss compute time:", dt)
 
         # check nan or inf
         for k, v in loss_dict.items():
@@ -310,10 +322,15 @@ def main(args):
                 raise ValueError(f"NaN detected in loss {k} at step {step}")
             if torch.isinf(v).any():
                 raise ValueError(f"Inf detected in loss {k} at step {step}")
+        t0 = time.perf_counter()
         trainer.backward(loss_dict)
-        
+        dt = time.perf_counter() - t0
+        print("backwards time:", dt)
         # after training step
+        t0 = time.perf_counter()
         trainer.postprocess_per_train_step(step=step)
+        dt = time.perf_counter() - t0
+        print("posprocess time:", dt)
         
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------
