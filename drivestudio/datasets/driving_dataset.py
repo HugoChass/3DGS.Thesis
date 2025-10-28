@@ -8,6 +8,7 @@ from omegaconf import OmegaConf
 
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 
 from models.gaussians.basics import *
 from datasets.base.scene_dataset import ModelType
@@ -640,6 +641,60 @@ class DrivingDataset(SceneDataset):
         # but train_timesteps are timesteps, so the length is num_train_timesteps (len(unique_train_timestamps))
         return train_timesteps, test_timesteps, train_indices, test_indices
     
+    def gaussian_semantic_thicken(self,
+        sem_map: torch.Tensor,        # H x W, hard labels; ignore_index marks unlabeled
+        num_classes: int,
+        ignore_index: int,
+        sigma: float = 2.0,           # blur in pixels; ~1–4 is typical
+        valid_thresh: float = 0.02,   # min blurred valid mass to assign any label
+        ) -> torch.Tensor:
+
+        assert sem_map.dim() == 2
+        H, W = sem_map.shape
+
+        # Validity
+        valid = (sem_map != ignore_index).float().view(1, 1, H, W)
+
+        # One-hot from hard labels (no probabilities involved)
+        lab = sem_map.clone()
+        lab[lab == ignore_index] = 0
+        one_hot = F.one_hot(lab.to(torch.int64), num_classes=num_classes)  # H x W x C
+        one_hot = one_hot.permute(2, 0, 1).unsqueeze(0).float()            # 1 x C x H x W
+        one_hot = one_hot * valid                                          # zero-out unlabeled
+
+        # Build separable Gaussian kernel
+        radius = max(1, int(round(3 * sigma)))
+        x = torch.arange(-radius, radius + 1, dtype=torch.float32, device=sem_map.device)
+        g1 = torch.exp(-0.5 * (x / sigma) ** 2)
+        g1 = g1 / (g1.sum() + 1e-8)
+        kH = g1.view(1, 1, 1, -1)
+        kV = g1.view(1, 1, -1, 1)
+
+        # Blur per-class indicator maps (grouped conv keeps classes separate)
+        C = num_classes
+        Cmaps = F.conv2d(F.pad(one_hot, (radius, radius, 0, 0), mode='reflect'),
+                        kH.expand(C, 1, 1, kH.shape[-1]), groups=C)
+        Cmaps = F.conv2d(F.pad(Cmaps, (0, 0, radius, radius), mode='reflect'),
+                        kV.expand(C, 1, kV.shape[-2], 1), groups=C)
+
+        # Blur the validity mass similarly (normalization factor)
+        V = F.conv2d(F.pad(valid, (radius, radius, 0, 0), mode='reflect'), kH)
+        V = F.conv2d(F.pad(V, (0, 0, radius, radius), mode='reflect'), kV)
+
+        # Normalize: local class “scores” per pixel from hard labels only
+        eps = 1e-6
+        scores = Cmaps / (V + eps)
+
+        # Choose the winning class; keep unlabeled where support is too small
+        mode_idx = scores.argmax(dim=1, keepdim=True)               # 1 x 1 x H x W
+        is_valid = (V > valid_thresh)
+
+        out = mode_idx.squeeze(0).squeeze(0).to(torch.int64)        # H x W
+        out = torch.where(is_valid.squeeze(0).squeeze(0),
+                        out,
+                        torch.full_like(out, ignore_index))
+        return out.to(sem_map.dtype)
+
     def project_lidar_pts_on_images(self, delete_out_of_view_points=True):
         """
         Project the lidar points on the images and attribute the color of the nearest pixel to the lidar point.
@@ -709,6 +764,7 @@ class DrivingDataset(SceneDataset):
                 semantics = lidar_infos["lidar_semantics"][valid_mask].to(device=self.device, dtype=torch.int8)
                 semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=14, device=self.device, dtype=torch.int8)
                 semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
+                self.gaussian_semantic_thicken(semantic_map, 14, 14)
                 lidar_semantic_maps.append(semantic_map)
                 
                 # used to filter out the lidar points that are visible from the camera
