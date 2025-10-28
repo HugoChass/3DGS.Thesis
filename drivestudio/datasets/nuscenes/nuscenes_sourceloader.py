@@ -387,38 +387,36 @@ class NuScenesLiDARSource(SceneLidarSource):
 
     def load_lidar(self):
 
+
         def collapse_labels_tensor(x: torch.Tensor) -> torch.Tensor:
             """
-            reduce the number of labels by creating a new labelling index:
-
-            0: noise
-            1: animal
-            2: human
-            3: movable_object
-            4: static_object
-            5: bicycle
-            6: vehicle
-            7: driveable_surface
-            8: flat.other
-            9: sidewalk
-            10: terrain
-            11: static
-            12: vegetation
-            13: vehicle.ego
-            14: unlabelled
-            15: background
+            Vectorized label collapse:
+            - Works on CPU/GPU.
+            - Unknown/out-of-range -> 15 (background).
+            - Returns torch.long (class indices).
             """
+            _MAPPING_0_31 = torch.tensor([
+                0,  # 0  -> 0
+                1,  # 1  -> 1
+                2, 2, 2, 2, 2, 2, 2,      # 2..8  -> 2
+                3, 3, 3, 3,               # 9..12 -> 3
+                4,                       # 13    -> 13
+                5,                        # 14    -> 5
+                6, 6, 6, 6, 6, 6, 6, 6, 6,# 15..23 -> 6
+                7, 8, 9, 10,              # 24..27 -> 7,8,9,10
+                11, 11,                   # 28..29 -> 11
+                12,                       # 30     -> 12
+                13                        # 31     -> 13
+            ], dtype=torch.long)
+            # Ensure index dtype for LUT
+            x_long = x.to(torch.long)
+            mapping = _MAPPING_0_31.to(x.device)
 
-            mapping = torch.tensor([
-            0, 1, 2, 2, 2, 2, 2, 2, 2,   # 0–8
-            3, 3, 3, 3,                   # 9–12
-            4, 5,                        # 13–14
-            6, 6, 6, 6, 6, 6, 6, 6, 6,    # 15–23
-            7, 8, 9, 10, 11, 11, 12, 13   # 24–31 
-            ], device=x.device)
-
-            x_copy = x.clone().clamp(0, 31)
-            return mapping[x_copy]
+            # Default to 15, then fill valid range with LUT
+            out = torch.full_like(x_long, 15)
+            valid = (x_long >= 0) & (x_long <= 31)
+            out[valid] = mapping[x_long[valid]]
+            return out.to(x.dtype)
                     
         origins, directions, ranges = [], [], []
         timesteps = []
