@@ -658,6 +658,8 @@ class DrivingDataset(SceneDataset):
         # One-hot from hard labels (no probabilities involved)
         lab = sem_map.clone()
         lab[lab == ignore_index] = 0
+        unique_ids = np.unique(lab)
+        print("Unique IDs in the lab semantic map:", unique_ids)
         one_hot = F.one_hot(lab.to(torch.int64), num_classes=num_classes)  # H x W x C
         one_hot = one_hot.permute(2, 0, 1).unsqueeze(0).float()            # 1 x C x H x W
         one_hot = one_hot * valid                                          # zero-out unlabeled
@@ -764,6 +766,8 @@ class DrivingDataset(SceneDataset):
                 semantics = lidar_infos["lidar_semantics"][valid_mask].to(device=self.device, dtype=torch.int8)
                 semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=14, device=self.device, dtype=torch.int8)
                 semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
+                unique_ids = np.unique(semantic_map)
+                print("Unique IDs in the semantic map:", unique_ids)
                 self.gaussian_semantic_thicken(semantic_map, 15, 14)
                 lidar_semantic_maps.append(semantic_map)
                 
