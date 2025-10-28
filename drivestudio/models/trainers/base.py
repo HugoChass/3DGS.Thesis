@@ -37,6 +37,9 @@ _PALETTE_255 = [
     (0, 255, 0),        # 15 BACKGROUND
     (75, 117, 117),     # 14 UNLABELLED
 ]
+def get_semantic_palette(device=None, dtype=torch.float32):
+    pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
+    return pal
 
 logger = logging.getLogger()
 
@@ -441,10 +444,6 @@ class BasicTrainer(nn.Module):
             else:
                 return torch.clamp(rendered_rgb, max=1.0), rendered_depth, alphas[..., None], info
         
-        def get_semantic_palette(device=None, dtype=torch.float32):
-            pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
-            return pal
-        
         # render rgb and opacity
         rgb, depth, opacity, self.info = render_fn(return_info=True)
         results = {
@@ -462,7 +461,7 @@ class BasicTrainer(nn.Module):
         num_classes = 14 # KNOWN CLASSES
 
         palette = get_semantic_palette(device=device, dtype=dtype)
-
+        
         # total coverage/alpha for normalization (remove last dim)
         alpha_total = opacity.squeeze(-1)  # [H,W]
 
@@ -601,6 +600,14 @@ class BasicTrainer(nn.Module):
             radius_clip=self.render_cfg.get('radius_clip', 0.)
         )
         
+        # render GT semantic map
+        device, dtype = gs.rgbs.device, gs.rgbs.dtype
+        palette = get_semantic_palette(device=device, dtype=dtype)
+        gt_semantic = image_infos["lidar_semantics_map"]
+        H, W = gt_semantic.shape
+        gt_semantic_map = palette[gt_semantic.view(-1)].view(H, W, 3).clone()
+        outputs["gt_semantic_map"] = gt_semantic_map
+
         # render sky
         sky_model = self.models['Sky']
         outputs["rgb_sky"] = sky_model(image_infos)
