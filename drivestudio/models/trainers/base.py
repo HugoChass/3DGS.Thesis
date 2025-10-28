@@ -523,7 +523,7 @@ class BasicTrainer(nn.Module):
         labels_rgb = palette[labels_safe.view(-1)].view(H, W, 3).clone()
 
         # For display-only labels (no grad) no unlabelled:
-        probs_vis = probs[..., :num_classes+1]                   
+        probs_vis = probs[..., :num_classes]                   
         labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
         labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
         labels_rgb_no_unlabelled = palette[labels_safe.view(-1)].view(H, W, 3).clone()
