@@ -645,7 +645,7 @@ class DrivingDataset(SceneDataset):
         sem_map: torch.Tensor,        # H x W, hard labels; ignore_index marks unlabeled
         num_classes: int,
         ignore_index: int,
-        sigma: float = 2.0,           # blur in pixels; ~1–4 is typical
+        sigma: float = 3.0,           # blur in pixels; ~1–4 is typical
         valid_thresh: float = 0.02,   # min blurred valid mass to assign any label
         ) -> torch.Tensor:
 
