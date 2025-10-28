@@ -714,7 +714,7 @@ class NuScenesProcessor(object):
 
         # 1-NN with radius cap
         dists, idxs = tree.query(xyz_w, k=1, workers=-1)
-        prop_labels = np.full(xyz_w.shape[0], 14, dtype=np.uint8)  # -1 = unknown
+        prop_labels = np.full(xyz_w.shape[0], -1, dtype=np.uint8)  # -1 = unknown
         mask = dists <= r_max
         prop_labels[mask] = all_lbl[idxs[mask]]
         return prop_labels
