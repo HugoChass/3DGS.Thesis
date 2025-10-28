@@ -315,14 +315,12 @@ def main(args):
         trainer.preprocess_per_train_step(step=step)
         trainer.optimizer_zero_grad()
         dt = time.perf_counter() - t0
-        print("preprocess time:", dt)
         log_timing("preprocess", dt)
 
         # get data / downscale
         t0 = time.perf_counter()
         train_step_camera_downscale = trainer._get_downscale_factor()
         dt = time.perf_counter() - t0
-        print("downscale time:", dt)
         log_timing("downscale", dt)
 
         image_infos, cam_infos = dataset.train_image_set.next(train_step_camera_downscale)
@@ -338,7 +336,6 @@ def main(args):
         outputs = trainer(image_infos, cam_infos)
         trainer.update_visibility_filter()
         dt = time.perf_counter() - t0
-        print("forward time:", dt)
         log_timing("forward", dt)
 
         t0 = time.perf_counter()
@@ -348,7 +345,6 @@ def main(args):
             cam_infos=cam_infos,
         )
         dt = time.perf_counter() - t0
-        print("loss compute time:", dt)
         log_timing("loss", dt)
 
         for k, v in loss_dict.items():
@@ -360,14 +356,12 @@ def main(args):
         t0 = time.perf_counter()
         trainer.backward(loss_dict)
         dt = time.perf_counter() - t0
-        print("backwards time:", dt)
         log_timing("backward", dt)
 
         # postprocess
         t0 = time.perf_counter()
         trainer.postprocess_per_train_step(step=step)
         dt = time.perf_counter() - t0
-        print("posprocess time:", dt)
         log_timing("postprocess", dt)
 
         # print summary every N steps (e.g., 50)
