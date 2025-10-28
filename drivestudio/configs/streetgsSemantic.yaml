@@ -38,7 +38,7 @@ trainer:
       use_01: False
       loss_01_w: 1.0
       use_ce: True
-      loss_ce_w: 0.3
+      loss_ce_w: 0.2
   res_schedule:
     double_steps: 250 # training starts at 1/d resolution, every n steps this is doubled
     downscale_times: 2 # at the beginning, resolution is 1/2^d, where d is this number
