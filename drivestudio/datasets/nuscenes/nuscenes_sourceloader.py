@@ -409,20 +409,16 @@ class NuScenesLiDARSource(SceneLidarSource):
                 13                        # 31     -> 13
             ], dtype=torch.long)
             # Ensure index dtype for LUT
-            unique_ids = np.unique(x)
-            print("Unique IDs in x:", unique_ids)
-
             x_long = x.to(torch.long)
             mapping = _MAPPING_0_31.to(x.device)
 
-            unique_ids = np.unique(x_long)
-            print("Unique IDs in xlong:", unique_ids)
             # Default to 15, then fill valid range with LUT
             out = torch.full_like(x_long, 15)
             valid = (x_long >= 0) & (x_long <= 31)
+            unknown = (x_long == -1)
             out[valid] = mapping[x_long[valid]]
-            if 15 in np.unique(out):
-                exit(0)
+            out[unknown] = 14
+
             return out.to(x.dtype)
                     
         origins, directions, ranges = [], [], []
