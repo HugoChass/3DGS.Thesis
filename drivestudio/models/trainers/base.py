@@ -523,7 +523,7 @@ class BasicTrainer(nn.Module):
         labels_rgb = palette[labels_safe.view(-1)].view(H, W, 3).clone()
 
         # For display-only labels (no grad) no unlabelled:
-        probs_vis = probs[..., :num_classes]                   
+        probs_vis = probs[..., :num_classes+1]                   
         labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
         labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
         labels_rgb_no_unlabelled = palette[labels_safe.view(-1)].view(H, W, 3).clone()
@@ -690,7 +690,7 @@ class BasicTrainer(nn.Module):
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_probs = outputs["semantic_probs"]
             gt_semantics = image_infos["lidar_semantics_map"]
-            labeled_mask = (gt_semantics != -1).bool()
+            labeled_mask = (gt_semantics != 14).bool()
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
 
             # binary loss/ misclassification
