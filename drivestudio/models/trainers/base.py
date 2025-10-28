@@ -20,43 +20,23 @@ from models.gaussians.basics import *
 
 # Map indices 0..31 to distinct, readable colors (RGB in [0,1])
 _PALETTE_255 = [
-    (0, 0, 0),          # 0  noise
-    (255, 192, 203),    # 1  animal
-    (220, 20, 60),      # 2  human.pedestrian.adult
-    (255, 105, 180),    # 3  human.pedestrian.child
-    (255, 165, 0),      # 4  human.pedestrian.construction_worker
-    (255, 215, 0),      # 5  human.pedestrian.personal_mobility
-    (0, 0, 139),        # 6  human.pedestrian.police_officer
-    (199, 21, 133),     # 7  human.pedestrian.stroller
-    (148, 0, 211),      # 8  human.pedestrian.wheelchair
-    (112, 128, 144),    # 9  movable_object.barrier
-    (160, 82, 45),      # 10 movable_object.debris
-    (210, 105, 30),     # 11 movable_object.pushable_pullable
-    (255, 69, 0),       # 12 movable_object.trafficcone
-    (105, 105, 105),    # 13 static_object.bicycle_rack
-    (0, 191, 255),      # 14 vehicle.bicycle
-    (65, 105, 225),     # 15 vehicle.bus.bendy
-    (30, 144, 255),     # 16 vehicle.bus.rigid
-    (0, 0, 255),        # 17 vehicle.car
-    (184, 134, 11),     # 18 vehicle.construction
-    (255, 0, 0),        # 19 vehicle.emergency.ambulance
-    (0, 0, 205),        # 20 vehicle.emergency.police
-    (255, 0, 255),      # 21 vehicle.motorcycle
-    (75, 0, 130),       # 22 vehicle.trailer
-    (0, 128, 128),      # 23 vehicle.truck
-    (50, 50, 50),       # 24 flat.driveable_surface
-    (205, 133, 63),     # 25 flat.other
-    (244, 164, 96),     # 26 flat.sidewalk
-    (143, 188, 143),    # 27 flat.terrain
-    (169, 169, 169),    # 28 static.manmade
-    (192, 192, 192),    # 29 static.other
-    (34, 139, 34),      # 30 static.vegetation
-    (255, 255, 255),    # 31 vehicle.ego
-    (0, 255, 0),        # 32 BACKGROUND
-    (75, 117, 117),     # 33 UNLABELLED
+    (0, 0, 0),          # 0 noise
+    (255, 192, 203),    # 1 animal
+    (220, 20, 60),      # 2 human
+    (255, 69, 0),       # 3 movable_object
+    (105, 105, 105),    # 4 static_object
+    (0, 191, 255),      # 5 bicycle
+    (0, 0, 255),        # 6 vehicle
+    (50, 50, 50),       # 7 driveable_surface
+    (205, 133, 63),     # 8 flat.other
+    (244, 164, 96),     # 9 sidewalk
+    (143, 188, 143),    # 10 terrain
+    (192, 192, 192),    # 11 static
+    (34, 139, 34),      # 12 vegetation
+    (255, 255, 255),    # 13 vehicle.ego
+    (0, 255, 0),        # 15 BACKGROUND
+    (75, 117, 117),     # 14 UNLABELLED
 ]
-# Color for unlabeled (-1)
-_UNLABELED_255 = (75, 117, 117)
 
 logger = logging.getLogger()
 
@@ -463,8 +443,7 @@ class BasicTrainer(nn.Module):
         
         def get_semantic_palette(device=None, dtype=torch.float32):
             pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
-            unlabeled = torch.tensor(_UNLABELED_255, device=device, dtype=dtype) / 255.0
-            return pal, unlabeled
+            return pal
         
         # render rgb and opacity
         rgb, depth, opacity, self.info = render_fn(return_info=True)
@@ -480,9 +459,9 @@ class BasicTrainer(nn.Module):
         # render semantics
         device, dtype = gs.rgbs.device, gs.rgbs.dtype
         H, W, _ = rgb.shape
-        num_classes = 32
+        num_classes = 14 # KNOWN CLASSES
 
-        palette, unlabeled_color = get_semantic_palette(device=device, dtype=dtype)
+        palette = get_semantic_palette(device=device, dtype=dtype)
 
         # total coverage/alpha for normalization (remove last dim)
         alpha_total = opacity.squeeze(-1)  # [H,W]
@@ -522,8 +501,8 @@ class BasicTrainer(nn.Module):
             class_masses.append(m_k)
         class_masses = torch.stack(class_masses, dim=-1)  # [H,W,K]
 
-        # unknown gaussian mass (ℓ = -1)
-        unknown_mask = (gs.semantics == -1).float()
+        # unknown gaussian mass (ℓ = 14)
+        unknown_mask = (gs.semantics == 14).float()
         unk_color = unknown_mask[:, None].expand(-1, 3)
         rgb_unk, _, _ = render_fn(opaticy_mask=None, override_colors=unk_color)
         m_unknown = rgb_unk[..., 0][..., None]            # [H,W,1]
@@ -538,13 +517,13 @@ class BasicTrainer(nn.Module):
         probs = m_all / (m_all.sum(dim=-1, keepdim=True) + 1e-6)          # closed simplex
 
         # For display-only labels (no grad):
-        probs_vis = probs[..., :num_classes+2]                   # drop unknown (and bg) for argmax
+        probs_vis = probs[..., :num_classes+2]                   
         labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
         labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
         labels_rgb = palette[labels_safe.view(-1)].view(H, W, 3).clone()
 
         # For display-only labels (no grad) no unlabelled:
-        probs_vis = probs[..., :num_classes+1]                   # drop unknown (and bg) for argmax
+        probs_vis = probs[..., :num_classes+1]                   
         labels = probs_vis.detach().argmax(dim=-1)   # [H,W]
         labels_safe = labels.clamp_min(0)            # map -1 to 0 for palette indexing
         labels_rgb_no_unlabelled = palette[labels_safe.view(-1)].view(H, W, 3).clone()

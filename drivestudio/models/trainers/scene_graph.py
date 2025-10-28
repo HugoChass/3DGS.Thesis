@@ -148,7 +148,7 @@ class MultiTrainer(BasicTrainer):
                     visible_mask = dataset.check_pts_visibility(random_pts)
                     valid_pts = random_pts[visible_mask]
                     
-                    random_labels = torch.full((valid_pts.shape[0],), -1, dtype=torch.long, device=self.device)
+                    random_labels = torch.full((valid_pts.shape[0],), 14, dtype=torch.long, device=self.device)
                     logger.info(f'number of sampled lidar:{len(sampled_semantics)}')
                     logger.info(f'number of random points:{len(valid_pts)}')
                     sampled_pts = torch.cat([sampled_pts, valid_pts], dim=0)
