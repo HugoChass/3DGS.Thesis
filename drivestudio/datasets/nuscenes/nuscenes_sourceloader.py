@@ -386,6 +386,40 @@ class NuScenesLiDARSource(SceneLidarSource):
         ).float()
 
     def load_lidar(self):
+
+        def collapse_labels_tensor(x: torch.Tensor) -> torch.Tensor:
+            """
+            reduce the number of labels by creating a new labelling index:
+
+            0: noise
+            1: animal
+            2: human
+            3: movable_object
+            4: static_object
+            5: bicycle
+            6: vehicle
+            7: driveable_surface
+            8: flat.other
+            9: sidewalk
+            10: terrain
+            11: static
+            12: vegetation
+            13: vehicle.ego
+            14: unlabelled
+            15: background
+            """
+
+            mapping = torch.tensor([
+            0, 1, 2, 2, 2, 2, 2, 2, 2,   # 0–8
+            3, 3, 3, 3,                   # 9–12
+            4, 5,                        # 13–14
+            6, 6, 6, 6, 6, 6, 6, 6, 6,    # 15–23
+            7, 8, 9, 10, 11, 11, 12, 13   # 24–31 
+            ], device=x.device)
+
+            x_copy = x.clone().clamp(0, 31)
+            return mapping[x_copy]
+                    
         origins, directions, ranges = [], [], []
         timesteps = []
         lidarseg_labels = []
@@ -427,6 +461,7 @@ class NuScenesLiDARSource(SceneLidarSource):
                     f"{labels_np.shape[0]} labels vs {original_length} points"
                 )
             labels_t = torch.from_numpy(labels_np.astype(np.int8))
+            labels_t = collapse_labels_tensor(labels_t)
             lidarseg_labels.append(labels_t)
 
         logger.info(
