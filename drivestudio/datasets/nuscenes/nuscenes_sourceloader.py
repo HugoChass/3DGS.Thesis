@@ -411,7 +411,7 @@ class NuScenesLiDARSource(SceneLidarSource):
             # Ensure index dtype for LUT
             unique_ids = np.unique(x)
             print("Unique IDs in x:", unique_ids)
-            
+
             x_long = x.to(torch.long)
             mapping = _MAPPING_0_31.to(x.device)
 
@@ -421,6 +421,8 @@ class NuScenesLiDARSource(SceneLidarSource):
             out = torch.full_like(x_long, 15)
             valid = (x_long >= 0) & (x_long <= 31)
             out[valid] = mapping[x_long[valid]]
+            if 15 in np.unique(out):
+                exit(0)
             return out.to(x.dtype)
                     
         origins, directions, ranges = [], [], []
