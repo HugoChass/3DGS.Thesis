@@ -278,13 +278,9 @@ def main(args):
             # total Gaussian semantics
             total_semantics = []
             for class_name, _ in trainer.model_config.items():
-                print("class", class_name)
                 if class_name in trainer.gaussian_classes:
-                    print("class", class_name)
                     model = trainer.models[class_name]
-                    print("model",model)
                     s = model._semantics
-                    print("semanics in model",s)
                     if s is None:
                         continue
                     s = s.detach().cpu()
