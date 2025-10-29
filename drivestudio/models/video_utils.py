@@ -236,6 +236,7 @@ def render(
                 semantics_labels.append(get_numpy(results['semantic_label']))
                 semantics_rgbs.append(get_numpy(results['semantic_rgb']))
                 semantics_rgbs_no_unlabelled.append(get_numpy(results['semantic_rgb_no_unlabelled']))
+                print(results["gt_semantic_map"])
                 gt_semantic_map.append(get_numpy(results['gt_semantic_map']))
 
             if compute_metrics:

@@ -606,8 +606,7 @@ class BasicTrainer(nn.Module):
         gt_semantic = image_infos["lidar_semantics_map"]
         H, W = gt_semantic.shape
         gt_semantic_map = palette[gt_semantic.view(-1)].view(H, W, 3).clone()
-        outputs["gt_semantic_map"] = gt_semantic_map
-
+        outputs.update({"gt_semantic_map": gt_semantic_map})
         # render sky
         sky_model = self.models['Sky']
         outputs["rgb_sky"] = sky_model(image_infos)
@@ -617,7 +616,7 @@ class BasicTrainer(nn.Module):
         outputs["rgb"] = self.affine_transformation(
             outputs["rgb_gaussians"] + outputs["rgb_sky"] * (1.0 - outputs["opacity"]), image_infos
         )
-        
+        print(outputs["gt_semantic_map"])
         return outputs
     
     def backward(self, loss_dict: Dict[str, torch.Tensor]) -> None:
