@@ -491,17 +491,22 @@ class BasicTrainer(nn.Module):
         # class ids 0..K-1  (known classes)
         class_ids = list(range(num_classes))
 
+        # temperature optional; you can anneal from ~1.5 → 1.0 → 0.7
+        T = 1.0
+        sem_probs = torch.softmax(gs.semantics / T, dim=-1)   # [N, K(+1)]
+
         # class masses for known classes
         class_masses = []
         for k in class_ids:
-            class_color = (gs.semantics == k).float()[:, None].expand(-1, 3)  # [N,3]
+            #class_color = (gs.semantics == k).float()[:, None].expand(-1, 3)  # [N,3]
+            class_color = sem_probs[:, k][:, None].expand(-1, 3)
             rgb_k, _, _ = render_fn(opaticy_mask=None, override_colors=class_color)
-            m_k = rgb_k[..., 0]                         # [H,W]
-            class_masses.append(m_k)
+            class_masses.append(rgb_k[..., 0] )
+
         class_masses = torch.stack(class_masses, dim=-1)  # [H,W,K]
 
         # unknown gaussian mass (ℓ = 14)
-        unknown_mask = (gs.semantics == 14).float()
+        unknown_mask = sem_probs[:, 14]
         unk_color = unknown_mask[:, None].expand(-1, 3)
         rgb_unk, _, _ = render_fn(opaticy_mask=None, override_colors=unk_color)
         m_unknown = rgb_unk[..., 0][..., None]            # [H,W,1]
@@ -608,7 +613,7 @@ class BasicTrainer(nn.Module):
         gt_semantic = torch.tensor(gt_semantic, device=device, dtype=torch.long)
         gt_semantic_map = palette[gt_semantic.view(-1)].view(H, W, 3).clone()
         outputs.update({"gt_semantic_map": gt_semantic_map})
-        
+
         # render sky
         sky_model = self.models['Sky']
         outputs["rgb_sky"] = sky_model(image_infos)

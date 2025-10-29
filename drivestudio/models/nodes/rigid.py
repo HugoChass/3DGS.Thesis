@@ -86,7 +86,15 @@ class RigidNodes(VanillaGaussians):
         self._scales = Parameter(torch.log(avg_dist.repeat(1, 3)))
         self._quats = Parameter(random_quat_tensor(self.num_points).to(self.device))
         dim_sh = num_sh_bases(self.sh_degree)
-        self._semantics = Parameter(instances_semantics.float()) # NEW
+
+        logits_init, _ = self.init_semantic_logits(
+            hard_labels=instances_semantics,
+            num_classes=14,             # your known classes
+            include_unknown=True,      # recommended
+            hi=5.0, lo=-5.0
+        )
+        self._semantics = Parameter(logits_init)
+        #self._semantics = Parameter(instances_semantics.float()) # NEW
         
         # pose refinement
         self.instances_quats = Parameter(self.quat_act(instances_quats)) # (num_frame, num_instances, 4)
@@ -102,6 +110,42 @@ class RigidNodes(VanillaGaussians):
         self._features_dc = Parameter(shs[:, 0, :])
         self._features_rest = Parameter(shs[:, 1:, :])
         self._opacities = Parameter(torch.logit(0.1 * torch.ones(self.num_points, 1, device=self.device)))
+
+    def init_semantic_logits(self,
+                            hard_labels: torch.Tensor,
+                            num_classes: int,
+                            hi: float = 5.0,
+                            lo: float = -5.0):
+        """
+        hard_labels: [N] int64, values in {0..K-1} or -1 for unlabeled
+        num_classes: K (known classes)
+        hi/lo: logit values for confident one-hot-ish init
+        returns:
+            sem_logits: [N, K(+1)] float32
+            idx_unknown: index of UNKNOWN class if included, else None
+        """
+        assert hard_labels.dim() == 1
+        N = hard_labels.numel()
+        device = hard_labels.device
+        K = num_classes
+        C = K + 1
+        idx_unknown = K
+
+        sem_logits = torch.full((N, C), lo, device=device, dtype=torch.float32)
+
+        # known labels mask
+        known_mask = hard_labels >= 0
+        if known_mask.any():
+            rows = torch.nonzero(known_mask, as_tuple=False).squeeze(1)
+            cols = hard_labels[rows].long().clamp_(0, K-1)
+            sem_logits[rows, cols] = hi
+
+        # unlabeled → put mass in UNKNOWN (if available) else keep uniform-ish (all lo)
+        if (~known_mask).any():
+            rows = torch.nonzero(~known_mask, as_tuple=False).squeeze(1)
+            sem_logits[rows, idx_unknown] = 0.0
+            
+        return sem_logits, idx_unknown
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
         param_groups = self.get_gaussian_param_groups()

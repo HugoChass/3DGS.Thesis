@@ -190,8 +190,7 @@ def main(args):
         # "SMPLNodes_depths",
         # "mask",
         "semantics_rgbs",
-        "semantics_rgbs_no_unlabelled",
-        "gt_semantic_map"
+        "semantics_rgbs_no_unlabelled"
     ]
     if cfg.render.vis_lidar:
         render_keys.insert(0, "lidar_on_images")
@@ -263,7 +262,7 @@ def main(args):
                 ),  # don't save the video
                 layout=dataset.layout,
                 num_timestamps=1,
-                keys=render_keys,
+                keys=render_keys + ["gt_semantic_map"],
                 save_seperate_video=cfg.logging.save_seperate_video,
                 num_cams=dataset.pixel_source.num_cams,
                 fps=cfg.render.fps,
