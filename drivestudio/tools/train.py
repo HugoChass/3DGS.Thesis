@@ -277,16 +277,18 @@ def main(args):
 
             # total Gaussian semantics
             total_semantics = []
-            for class_name, model_cfg in trainer.model_config.items():
-                model = trainer.models[class_name]
-                print("model",model)
-                s = model._semantics
-                print("semanics in model",s)
-                if s is None:
-                    continue
-                s = s.detach().cpu()
-                s = s.view(-1).tolist()
-                total_semantics.extend(int(x) for x in s)
+            for class_name, _ in trainer.model_config.items():
+                if class_name in trainer.gaussian_classes:
+                    print("class", class_name)
+                    model = trainer.models[class_name]
+                    print("model",model)
+                    s = model._semantics
+                    print("semanics in model",s)
+                    if s is None:
+                        continue
+                    s = s.detach().cpu()
+                    s = s.view(-1).tolist()
+                    total_semantics.extend(int(x) for x in s)
 
             logger.info(f"total number of Gaussians at step {step}: {len(total_semantics)}")
 
