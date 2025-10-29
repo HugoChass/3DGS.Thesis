@@ -616,7 +616,6 @@ class BasicTrainer(nn.Module):
         outputs["rgb"] = self.affine_transformation(
             outputs["rgb_gaussians"] + outputs["rgb_sky"] * (1.0 - outputs["opacity"]), image_infos
         )
-        print(outputs["gt_semantic_map"])
         return outputs
     
     def backward(self, loss_dict: Dict[str, torch.Tensor]) -> None:

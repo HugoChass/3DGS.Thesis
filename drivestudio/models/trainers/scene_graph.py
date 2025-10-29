@@ -9,6 +9,29 @@ from models.trainers.base import BasicTrainer, GSModelType
 from utils.misc import import_str
 from utils.geometry import uniform_sample_sphere
 
+# Map indices 0..31 to distinct, readable colors (RGB in [0,1])
+_PALETTE_255 = [
+    (0, 0, 0),          # 0 noise
+    (255, 192, 203),    # 1 animal
+    (220, 20, 60),      # 2 human
+    (255, 69, 0),       # 3 movable_object
+    (105, 105, 105),    # 4 static_object
+    (0, 191, 255),      # 5 bicycle
+    (0, 0, 255),        # 6 vehicle
+    (50, 50, 50),       # 7 driveable_surface
+    (205, 133, 63),     # 8 flat.other
+    (244, 164, 96),     # 9 sidewalk
+    (143, 188, 143),    # 10 terrain
+    (192, 192, 192),    # 11 static
+    (34, 139, 34),      # 12 vegetation
+    (255, 255, 255),    # 13 vehicle.ego
+    (0, 255, 0),        # 15 BACKGROUND
+    (75, 117, 117),     # 14 UNLABELLED
+]
+def get_semantic_palette(device=None, dtype=torch.float32):
+    pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
+    return pal
+
 logger = logging.getLogger()
 
 class MultiTrainer(BasicTrainer):
@@ -275,6 +298,14 @@ class MultiTrainer(BasicTrainer):
             render_mode="RGB+ED",
             radius_clip=self.render_cfg.get('radius_clip', 0.)
         )
+
+        # render GT semantic map
+        device, dtype = gs.rgbs.device, gs.rgbs.dtype
+        palette = get_semantic_palette(device=device, dtype=dtype)
+        gt_semantic = image_infos["lidar_semantics_map"]
+        H, W = gt_semantic.shape
+        gt_semantic_map = palette[gt_semantic.view(-1)].view(H, W, 3).clone()
+        outputs.update({"gt_semantic_map": gt_semantic_map})
         
         # render sky
         sky_model = self.models['Sky']
