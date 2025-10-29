@@ -58,7 +58,7 @@ trainer:
     rotation:
       lr: 0.001
     semantics:
-      lr: 0.001
+      lr: 0.0005
   gaussian_ctrl_general_cfg:
     warmup_steps: 500             # warmup steps for alpha
     reset_alpha_interval: 3000    # reset alpha every n steps
