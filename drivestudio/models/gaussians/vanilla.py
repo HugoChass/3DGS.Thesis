@@ -136,7 +136,7 @@ class VanillaGaussians(nn.Module):
         sem_logits = torch.full((N, C), lo, device=device, dtype=torch.float32)
 
         # known labels mask
-        known_mask = K > hard_labels >= 0
+        known_mask = (hard_labels >= 0) & (hard_labels < K)
         if known_mask.any():
             rows = torch.nonzero(known_mask, as_tuple=False).squeeze(1)
             cols = hard_labels[rows].long().clamp_(0, K-1)
