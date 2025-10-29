@@ -304,7 +304,8 @@ class MultiTrainer(BasicTrainer):
         palette = get_semantic_palette(device=device, dtype=dtype)
         gt_semantic = image_infos["lidar_semantics_map"]
         H, W = gt_semantic.shape
-        print(type(gt_semantic))
+        gt_semantic_map = gt_semantic_map.to(device)
+        gt_semantic_map = gt_semantic_map.to(dtype)
         gt_semantic_map = palette[gt_semantic.view(-1)].view(H, W, 3).clone()
         outputs.update({"gt_semantic_map": gt_semantic_map})
         
