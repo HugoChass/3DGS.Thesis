@@ -409,7 +409,7 @@ class VanillaGaussians(nn.Module):
         # step 5, sample new quats
         new_quats = self._quats[split_mask].repeat(samps, 1)
 
-        new_semantics = self._semantics[split_mask].repeat(samps) # NEW + RETURN
+        new_semantics = self._semantics[split_mask].repeat(samps, 1) # NEW + RETURN
         return new_means, new_feature_dc, new_feature_rest, new_opacities, new_scales, new_quats, new_semantics
 
     def dup_gaussians(self, dup_mask: torch.Tensor) -> Tuple:
