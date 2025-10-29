@@ -278,8 +278,9 @@ def main(args):
             # total Gaussian semantics
             total_semantics = []
             for model in trainer.models:
+                print("model",model)
                 s = model._semantics
-                print(s)
+                print("semanics in model",s)
                 if s is None:
                     continue
                 s = s.detach().cpu()
