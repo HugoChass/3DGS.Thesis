@@ -764,7 +764,7 @@ class DrivingDataset(SceneDataset):
                 semantics = lidar_infos["lidar_semantics"][valid_mask].to(device=self.device, dtype=torch.int8)
                 semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=14, device=self.device, dtype=torch.int8)
                 semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
-                # semantic_map = self.gaussian_semantic_thicken(semantic_map, 15, 14)
+                semantic_map = self.gaussian_semantic_thicken(semantic_map, 15, 14)
                 lidar_semantic_maps.append(semantic_map)
                 
                 # used to filter out the lidar points that are visible from the camera
