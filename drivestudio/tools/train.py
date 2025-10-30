@@ -274,29 +274,29 @@ def main(args):
             del render_results
             torch.cuda.empty_cache()
 
-            # total Gaussian semantics
-            total_semantics = []
+            # nbr Gaussians per class logging
+            total_hard_labels = []
             for class_name, _ in trainer.model_config.items():
-                if class_name in trainer.gaussian_classes:
-                    model = trainer.models[class_name]
-                    s = model._semantics
-                    if s is None:
-                        continue
-                    s = s.detach().cpu()
-                    s = s.view(-1).tolist()
-                    total_semantics.extend(int(x) for x in s)
+                if class_name not in trainer.gaussian_classes:
+                    continue
+                model = trainer.models[class_name]
+                s = model._semantics
+                if s is None:
+                    continue
 
-            logger.info(f"total number of Gaussians at step {step}: {len(total_semantics)}")
+                s = s.detach().cpu()
+                labels = s.argmax(dim=1).tolist()   # hard label per gaussian
+                total_hard_labels.extend(int(x) for x in labels)
 
-            # Count the number of each label in total_semantics
-            label_counts = Counter(total_semantics)
+            logger.info(f"total number of Gaussians at step {step}: {len(total_hard_labels)}")
 
+            label_counts = Counter(total_hard_labels)
             record = {
-                "iterations": int(step),                     # <- ensure built-in int
-                "total_gaussians": int(len(total_semantics))
-                }
-            for lbl, cnt in sorted(label_counts.items()):
-                record[f"label_{int(lbl)}"] = int(cnt)
+                "iterations": int(step),
+                "total_gaussians": int(len(total_hard_labels)),
+            }
+            for lbl in sorted(label_counts):
+                record[f"label_{int(lbl)}"] = int(label_counts[lbl])
 
             semantic_log.append(record)
         
