@@ -392,32 +392,19 @@ class NuScenesLiDARSource(SceneLidarSource):
             """
             Vectorized label collapse:
             - Works on CPU/GPU.
-            - Unknown/out-of-range -> 15 (background).
             - Returns torch.long (class indices).
             """
-            _MAPPING_0_31 = torch.tensor([
-                0,  # 0  -> 0
-                1,  # 1  -> 1
-                2, 2, 2, 2, 2, 2, 2,      # 2..8  -> 2
-                3, 3, 3, 3,               # 9..12 -> 3
-                4,                       # 13    -> 13
-                5,                        # 14    -> 5
-                6, 6, 6, 6, 6, 6, 6, 6, 6,# 15..23 -> 6
-                7, 8, 9, 10,              # 24..27 -> 7,8,9,10
-                11, 11,                   # 28..29 -> 11
-                12,                       # 30     -> 12
-                13                        # 31     -> 13
-            ], dtype=torch.long)
+            _MAPPING_0_31 = torch.tensor([0, 0, 7, 7, 7, 0, 7, 0, 0, 1, 0, 0, 8, 0, 2, 3, 3, 4, 5, 0, 0, 6, 9, 10, 11, 12, 13, 14, 15, 0, 16, 0], dtype=torch.long)
             # Ensure index dtype for LUT
             x_long = x.to(torch.long)
             mapping = _MAPPING_0_31.to(x.device)
 
-            # Default to 15, then fill valid range with LUT
-            out = torch.full_like(x_long, 15)
+            # Default to 18, then fill valid range with LUT
+            out = torch.full_like(x_long, 18)
             valid = (x_long >= 0) & (x_long <= 31)
             unknown = (x_long == -1)
             out[valid] = mapping[x_long[valid]]
-            out[unknown] = 14
+            out[unknown] = 17
 
             return out.to(x.dtype)
                     

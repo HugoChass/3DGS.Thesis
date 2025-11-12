@@ -367,7 +367,7 @@ def main(args):
         log_timing("postprocess", dt)
 
         # print summary every N steps (e.g., 50)
-        print_timing_summary(step=step, every=50, reset_after_print=False)  # set True to roll a moving window
+        print_timing_summary(step=step, every=10000, reset_after_print=False)  # set True to roll a moving window
 
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------

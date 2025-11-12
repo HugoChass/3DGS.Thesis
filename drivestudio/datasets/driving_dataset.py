@@ -645,7 +645,7 @@ class DrivingDataset(SceneDataset):
         sem_map: torch.Tensor,        # H x W, hard labels; ignore_index marks unlabeled
         num_classes: int,
         ignore_index: int,
-        sigma: float = 4.0,           # blur in pixels; ~1–4 is typical
+        sigma: float = 3.0,           # blur in pixels; ~1–4 is typical
         valid_thresh: float = 0.02,   # min blurred valid mass to assign any label
         ) -> torch.Tensor:
 
@@ -762,9 +762,9 @@ class DrivingDataset(SceneDataset):
                 lidar_depth_maps.append(depth_map)
 
                 semantics = lidar_infos["lidar_semantics"][valid_mask].to(device=self.device, dtype=torch.int8)
-                semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=14, device=self.device, dtype=torch.int8)
+                semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=17, device=self.device, dtype=torch.int8)
                 semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
-                semantic_map = self.gaussian_semantic_thicken(semantic_map, 15, 14)
+                semantic_map = self.gaussian_semantic_thicken(semantic_map, 18, 17)
                 lidar_semantic_maps.append(semantic_map)
                 
                 # used to filter out the lidar points that are visible from the camera

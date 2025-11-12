@@ -20,23 +20,26 @@ from models.gaussians.basics import *
 
 # Map indices 0..31 to distinct, readable colors (RGB in [0,1])
 _PALETTE_255 = [
-    (0, 0, 0),          # 0 noise
-    (255, 192, 203),    # 1 animal
-    (220, 20, 60),      # 2 human
-    (255, 69, 0),       # 3 movable_object
-    (105, 105, 105),    # 4 static_object
-    (0, 191, 255),      # 5 bicycle
-    (0, 0, 255),        # 6 vehicle
-    (50, 50, 50),       # 7 driveable_surface
-    (205, 133, 63),     # 8 flat.other
-    (244, 164, 96),     # 9 sidewalk
-    (143, 188, 143),    # 10 terrain
-    (192, 192, 192),    # 11 static
-    (34, 139, 34),      # 12 vegetation
-    (255, 255, 255),    # 13 vehicle.ego
-    (0, 255, 0),        # 15 BACKGROUND
-    (75, 117, 117),     # 14 UNLABELLED
-]
+    (0, 0, 0),          # 0 void
+    (102, 44, 22),       # 1 barrier
+    (0, 191, 255),      # 2 bicycle
+    (59, 59, 219),      # 3 bus
+    (0, 0, 255),        # 4 vehicle
+    (224, 117, 9),      # 5 construction vehicule
+    (9, 224, 206),      # 6 motercycle
+    (220, 20, 60),      # 7 human
+    (255, 69, 0),       # 8 traffic cone
+    (46, 82, 24),       # 9 trailer
+    (81, 22, 102),      # 10 truck
+    (50, 50, 50),       # 11 driveable_surface
+    (205, 133, 63),     # 12 flat.other
+    (244, 164, 96),     # 13 sidewalk
+    (143, 188, 143),    # 14 terrain
+    (105, 105, 105),    # 15 static_object
+    (34, 139, 34),      # 16 vegetation
+    (0, 255, 0),        # 18 BACKGROUND
+    (75, 117, 117),     # 17 UNLABELLED
+    ]
 def get_semantic_palette(device=None, dtype=torch.float32):
     pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
     return pal
@@ -458,7 +461,7 @@ class BasicTrainer(nn.Module):
         # render semantics
         device, dtype = gs.rgbs.device, gs.rgbs.dtype
         H, W, _ = rgb.shape
-        num_classes = 14 # KNOWN CLASSES
+        num_classes = 17 # KNOWN CLASSES
 
         palette = get_semantic_palette(device=device, dtype=dtype)
         
@@ -505,8 +508,8 @@ class BasicTrainer(nn.Module):
 
         class_masses = torch.stack(class_masses, dim=-1)  # [H,W,K]
 
-        # unknown gaussian mass (ℓ = 14)
-        unknown_mask = sem_probs[:, 14]
+        # unknown gaussian mass (ℓ = 17)
+        unknown_mask = sem_probs[:, 17]
         unk_color = unknown_mask[:, None].expand(-1, 3)
         rgb_unk, _, _ = render_fn(opaticy_mask=None, override_colors=unk_color)
         m_unknown = rgb_unk[..., 0][..., None]            # [H,W,1]
@@ -702,7 +705,7 @@ class BasicTrainer(nn.Module):
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_probs = outputs["semantic_probs"]
             gt_semantics = image_infos["lidar_semantics_map"]
-            labeled_mask = (gt_semantics != 14).bool()
+            labeled_mask = (gt_semantics != 17).bool()
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
 
             # binary loss/ misclassification

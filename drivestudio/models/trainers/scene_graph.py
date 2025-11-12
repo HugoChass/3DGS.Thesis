@@ -11,23 +11,26 @@ from utils.geometry import uniform_sample_sphere
 
 # Map indices 0..31 to distinct, readable colors (RGB in [0,1])
 _PALETTE_255 = [
-    (0, 0, 0),          # 0 noise
-    (255, 192, 203),    # 1 animal
-    (220, 20, 60),      # 2 human
-    (255, 69, 0),       # 3 movable_object
-    (105, 105, 105),    # 4 static_object
-    (0, 191, 255),      # 5 bicycle
-    (0, 0, 255),        # 6 vehicle
-    (50, 50, 50),       # 7 driveable_surface
-    (205, 133, 63),     # 8 flat.other
-    (244, 164, 96),     # 9 sidewalk
-    (143, 188, 143),    # 10 terrain
-    (192, 192, 192),    # 11 static
-    (34, 139, 34),      # 12 vegetation
-    (255, 255, 255),    # 13 vehicle.ego
-    (0, 255, 0),        # 15 BACKGROUND
-    (75, 117, 117),     # 14 UNLABELLED
-]
+    (0, 0, 0),          # 0 void
+    (102, 44, 22),       # 1 barrier
+    (0, 191, 255),      # 2 bicycle
+    (59, 59, 219),      # 3 bus
+    (0, 0, 255),        # 4 vehicle
+    (224, 117, 9),      # 5 construction vehicule
+    (9, 224, 206),      # 6 motercycle
+    (220, 20, 60),      # 7 human
+    (255, 69, 0),       # 8 traffic cone
+    (46, 82, 24),       # 9 trailer
+    (81, 22, 102),      # 10 truck
+    (50, 50, 50),       # 11 driveable_surface
+    (205, 133, 63),     # 12 flat.other
+    (244, 164, 96),     # 13 sidewalk
+    (143, 188, 143),    # 14 terrain
+    (105, 105, 105),    # 15 static_object
+    (34, 139, 34),      # 16 vegetation
+    (0, 255, 0),        # 18 BACKGROUND
+    (75, 117, 117),     # 17 UNLABELLED
+    ]
 def get_semantic_palette(device=None, dtype=torch.float32):
     pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
     return pal
@@ -171,7 +174,7 @@ class MultiTrainer(BasicTrainer):
                     visible_mask = dataset.check_pts_visibility(random_pts)
                     valid_pts = random_pts[visible_mask]
                     
-                    random_labels = torch.full((valid_pts.shape[0],), 14, dtype=torch.long, device=self.device)
+                    random_labels = torch.full((valid_pts.shape[0],), 17, dtype=torch.long, device=self.device)
                     logger.info(f'number of sampled lidar:{len(sampled_semantics)}')
                     logger.info(f'number of random points:{len(valid_pts)}')
                     sampled_pts = torch.cat([sampled_pts, valid_pts], dim=0)
