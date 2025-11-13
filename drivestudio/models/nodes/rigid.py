@@ -89,7 +89,7 @@ class RigidNodes(VanillaGaussians):
 
         logits_init, _ = self.init_semantic_logits(
             hard_labels=instances_semantics,
-            num_classes=14,             # your known classes
+            num_classes=17,             # your known classes
             hi=5.0, lo=-5.0
         )
         self._semantics = Parameter(logits_init)
