@@ -652,7 +652,7 @@ class CameraData(object):
             lidar_semantics_map = self.lidar_semantics_maps[frame_idx]
             if self.downscale_factor != 1.0:
                 targ_h, targ_w = lidar_depth_map.shape
-                lidar_semantics_map = downsample_sparse_mode_anyscale(lidar_semantics_map, self.downscale_factor, 16)
+                lidar_semantics_map = downsample_sparse_mode_anyscale(lidar_semantics_map, self.downscale_factor, 18)
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
