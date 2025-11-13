@@ -96,7 +96,7 @@ def sparse_lidar_map_downsampler(lidar_depth_map, downscale_factor):
 def downsample_sparse_mode_anyscale(sem_map: torch.Tensor,
                                     scale: float,
                                     num_classes: int,
-                                    ignore_index: int = 14,
+                                    ignore_index: int = 17,
                                     valid_thresh: float = 0.0) -> torch.Tensor:
     """
     Downsample sparse labels for arbitrary scale (e.g., 0.25) using area resampling.
