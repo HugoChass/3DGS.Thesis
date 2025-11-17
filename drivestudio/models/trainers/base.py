@@ -21,7 +21,7 @@ from models.gaussians.basics import *
 # Map indices 0..31 to distinct, readable colors (RGB in [0,1])
 _PALETTE_255 = [
     (0, 0, 0),          # 0 void
-    (102, 44, 22),       # 1 barrier
+    (102, 44, 22),      # 1 barrier
     (0, 191, 255),      # 2 bicycle
     (59, 59, 219),      # 3 bus
     (0, 0, 255),        # 4 vehicle
@@ -37,8 +37,8 @@ _PALETTE_255 = [
     (143, 188, 143),    # 14 terrain
     (105, 105, 105),    # 15 static_object
     (34, 139, 34),      # 16 vegetation
-    (0, 255, 0),        # 18 BACKGROUND
     (75, 117, 117),     # 17 UNLABELLED
+    (0, 255, 0),        # 18 BACKGROUND
     ]
 def get_semantic_palette(device=None, dtype=torch.float32):
     pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
@@ -411,7 +411,7 @@ class BasicTrainer(nn.Module):
         
         return gaussians
     
-    def render_gaussians(
+    def render_gaussians_old(
         self,
         gs: dataclass_gs,
         cam: dataclass_camera,
@@ -466,30 +466,7 @@ class BasicTrainer(nn.Module):
         palette = get_semantic_palette(device=device, dtype=dtype)
         
         # total coverage/alpha for normalization (remove last dim)
-        alpha_total = opacity.squeeze(-1)  # [H,W]
-
-        # # Precompute ones_color so that RGB output equals accumulated alpha
-        # ones_color = torch.ones_like(gs.rgbs)  # [N,3]
-
-        # Output tensor
-        # class_alphas = []
-        # class_ids = list(range(num_classes))# + [-1]
-        # for k in class_ids:
-        #     mask_k = (gs.semantics == k).float()  # [N]
-        #     # Render class-k coverage. RGB equals accumulated alpha because colors=1.
-        #     rgb_k, _, _ = render_fn(opaticy_mask=mask_k, override_colors=ones_color)
-        #     # Any channel is fine; they are identical.
-        #     class_alpha_k = rgb_k[..., 0]  # [H,W]
-        #     class_alphas.append(class_alpha_k)
-
-        # class_alphas = torch.stack(class_alphas, dim=-1)  # [H,W,K]
-        # # probabilities conditioned on being non-background:
-        # eps = 1e-6
-        # probs = class_alphas / (alpha_total.unsqueeze(-1) + eps)  # [H,W,K]
-        # # Hard labels
-        # idx = torch.argmax(probs, dim=-1)
-        # class_ids_tensor = torch.tensor(class_ids, device=device, dtype=torch.long)
-        # labels = class_ids_tensor[idx]   
+        alpha_total = opacity.squeeze(-1)  # [H,W] 
         
         # class ids 0..K-1  (known classes)
         class_ids = list(range(num_classes))
@@ -551,6 +528,135 @@ class BasicTrainer(nn.Module):
         })
 
         return results, render_fn
+
+    def render_gaussians(self, gs: dataclass_gs, cam: dataclass_camera, **kwargs):
+        # expect gs.semantic_logits: [N, C]  (logits per Gaussian)
+        # if you don’t have it yet, set C=0 and skip the concat below.
+
+        C = getattr(gs, "semantics", None)
+        C = 0 if (C is None) else gs.semantics.shape[-1]
+
+        # You can set this once (e.g., in __init__) and pass it in; here we accept kwargs
+        device, dtype = gs.rgbs.device, gs.rgbs.dtype
+        palette = get_semantic_palette(device=device, dtype=dtype)
+        bg_opacity_thresh = 1e-2
+
+        def render_fn(opacity_mask=None, return_info=False):
+            opacities = gs.opacities.squeeze()
+            if opacity_mask is not None:
+                opacities = opacities * opacity_mask
+
+            # Pack RGB + semantic logits for one-pass rendering
+            if C > 0:
+                sem = gs.semantic_logits
+                if sem.dtype != torch.float16:
+                    sem = sem.half()
+                colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)
+                channel_chunk = max(32, 3 + C)
+            else:
+                colors_all = gs.rgbs
+                channel_chunk = 32
+
+            # one-pass render of RGB+sem (+depth at the end if requested)
+            renders, alphas, info = rasterization(
+                means=gs.means,
+                quats=gs.quats,
+                scales=gs.scales,
+                opacities=opacities,
+                colors=colors_all,                         # [N, 3+C]
+                viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],
+                Ks=cam.Ks[None, ...],
+                width=cam.W,
+                height=cam.H,
+                packed=self.render_cfg.packed,
+                absgrad=self.render_cfg.absgrad,
+                sparse_grad=self.render_cfg.sparse_grad,
+                rasterize_mode="antialiased" if self.render_cfg.antialiased else "classic",
+                render_mode="RGB+ED",                      # returns depth as last channel
+                channel_chunk=channel_chunk              # let gsplat chunk channels if big
+                **kwargs,
+            )
+
+            img = renders[0]               # [H, W, (3+C)+1]
+            alphas = alphas[0].squeeze(-1) # [H, W]
+
+            # split back out
+            if C > 0:
+                rgb = img[..., :3]
+                sem_logits = img[..., 3:3+C]
+                depth = img[..., 3+C:3+C+1]
+            else:
+                rgb = img[..., :3]
+                sem_logits = None
+                depth = img[..., 3:4]
+
+            rgb = torch.clamp(rgb, max=1.0)
+
+            if not return_info:
+                if sem_logits is None:
+                    return rgb, depth, alphas[..., None]
+                else:
+                    return rgb, depth, alphas[..., None], sem_logits
+            else:
+                if sem_logits is None:
+                    return rgb, depth, alphas[..., None], info
+                else:
+                    return rgb, depth, alphas[..., None], sem_logits, info
+
+        # main call
+        out = render_fn(return_info=True)
+        if len(out) == 4:
+            rgb, depth, opacity, self.info = out
+            sem = None
+        else:
+            rgb, depth, opacity, sem, self.info = out
+
+        results = {"rgb_gaussians": rgb, "depth": depth, "opacity": opacity}
+        if sem is not None:
+            sem_labels = sem.argmax(-1, keepdim=True).to(torch.int32)
+            results["semantic_logits"]  = sem                 # [H, W, C] (alpha-blended logits)
+            results["semantic_probs"]   = sem.float().softmax(-1)
+            results["semantic_label"]  = sem_labels
+
+            # ---- Palette visualization with background color ----
+            # background = last entry of palette
+            if palette is not None:
+                assert palette.ndim == 2 and palette.shape[1] == 3, \
+                    "palette must be [C+1, 3] in RGB"
+                assert palette.shape[0] == (C + 1), \
+                    f"palette should have C+1 rows (got {palette.shape[0]} vs {C+1})"
+
+                # Decide background from opacity (where scene not covered enough)
+                bg_mask = (opacity.squeeze(-1) < bg_opacity_thresh)  # [H, W]
+
+                # Compose an index image with background index = C
+                idx_vis = sem_labels.clone()
+                idx_vis[bg_mask] = 18  # last palette entry
+
+                # Map to colors
+                # palette device/dtype safety
+                pal = palette.to(device=idx_vis.device, dtype=rgb.dtype)  # [C+1,3]
+                sem_vis = pal[idx_vis]  # [H, W, 3]
+
+                results["semantic_rgb"] = sem_vis  # colored visualization in [0,1]
+
+                # Visulaisation but without unknown labels
+
+                idx_vis = sem[:, :, :-1].argmax(-1, keepdim=True).to(torch.int32)
+                idx_vis[bg_mask] = 18  # last palette entry
+
+                # Map to colors
+                # palette device/dtype safety
+                pal = palette.to(device=idx_vis.device, dtype=rgb.dtype)  # [C+1,3]
+                sem_vis = pal[idx_vis]  # [H, W, 3]
+
+                results["semantic_rgb_no_unlabelled"] = sem_vis  # colored visualization in [0,1]
+
+        if self.training:
+            self.info["means2d"].retain_grad()
+
+        return results, render_fn
+
 
     def affine_transformation(
         self,
@@ -703,7 +809,7 @@ class BasicTrainer(nn.Module):
             semce        = self.semantic_loss_cfg.get("ce", 0.5)
 
             pred_semantic_labels = outputs["semantic_label"]
-            pred_semantic_probs = outputs["semantic_probs"]
+            pred_semantic_logits = outputs["semantic_logits"]
             gt_semantics = image_infos["lidar_semantics_map"]
             labeled_mask = (gt_semantics != 17).bool()
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
@@ -746,24 +852,24 @@ class BasicTrainer(nn.Module):
             # CE loss
             if use_ce:
                 eps = 1e-8
-                H, W, K = pred_semantic_probs.shape
+                H, W, K = pred_semantic_logits.shape
 
                 # Flatten for easy masked gather
-                probs_flat = pred_semantic_probs.view(-1, K)                  # [HW, K]
+                logits_flat = pred_semantic_logits.view(-1, K)                  # [HW, K]
                 gt_flat    = gt_semantics.view(-1)                            # [HW]
                 mask_flat  = labeled_mask.view(-1)                            # [HW]
 
                 # Keep only labeled pixels
                 idx = mask_flat.nonzero(as_tuple=False).squeeze(1)            # [N]
                 if idx.numel() > 0:
-                    probs_lab = probs_flat[idx]                               # [N, K]
+                    logits_lab = logits_flat[idx]                               # [N, K]
                     gt_lab    = gt_flat[idx].long()                           # [N]
 
                     # Gather p_true for each labeled pixel
-                    p_true = probs_lab.gather(1, gt_lab.unsqueeze(1)).clamp_min(eps)  # [N, 1]
+                    p_true = logits_lab.gather(1, gt_lab.unsqueeze(1)).clamp_min(eps)  # [N, 1]
                     loss_ce = -p_true.log().mean()
                 else:
-                    loss_ce = probs_flat.new_tensor(0.0)
+                    loss_ce = logits_flat.new_tensor(0.0)
 
                 sem_losses["semantic_CE_loss"] = semce * loss_ce
 

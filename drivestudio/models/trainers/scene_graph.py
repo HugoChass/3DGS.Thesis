@@ -28,8 +28,8 @@ _PALETTE_255 = [
     (143, 188, 143),    # 14 terrain
     (105, 105, 105),    # 15 static_object
     (34, 139, 34),      # 16 vegetation
-    (0, 255, 0),        # 18 BACKGROUND
     (75, 117, 117),     # 17 UNLABELLED
+    (0, 255, 0),        # 18 BACKGROUND
     ]
 def get_semantic_palette(device=None, dtype=torch.float32):
     pal = torch.tensor(_PALETTE_255, device=device, dtype=dtype) / 255.0  # [32,3]
