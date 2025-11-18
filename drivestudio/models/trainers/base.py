@@ -548,7 +548,7 @@ class BasicTrainer(nn.Module):
 
             # Pack RGB + semantic logits for one-pass rendering
             if C > 0:
-                sem = gs.semantic_logits
+                sem = gs.semantics
                 if sem.dtype != torch.float16:
                     sem = sem.half()
                 colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)
