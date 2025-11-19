@@ -530,8 +530,6 @@ class BasicTrainer(nn.Module):
         return results, render_fn
 
     def render_gaussians(self, gs: dataclass_gs, cam: dataclass_camera, **kwargs):
-        # expect gs.semantic_logits: [N, C]  (logits per Gaussian)
-        # if you don’t have it yet, set C=0 and skip the concat below.
 
         C = getattr(gs, "semantics", None)
         C = 0 if (C is None) else gs.semantics.shape[-1]
@@ -573,7 +571,7 @@ class BasicTrainer(nn.Module):
                 sparse_grad=self.render_cfg.sparse_grad,
                 rasterize_mode="antialiased" if self.render_cfg.antialiased else "classic",
                 render_mode="RGB+ED",                      # returns depth as last channel
-                channel_chunk=channel_chunk              # let gsplat chunk channels if big
+                channel_chunk=channel_chunk,              # let gsplat chunk channels if big
                 **kwargs,
             )
 
