@@ -570,7 +570,6 @@ class BasicTrainer(nn.Module):
                 absgrad=self.render_cfg.absgrad,
                 sparse_grad=self.render_cfg.sparse_grad,
                 rasterize_mode="antialiased" if self.render_cfg.antialiased else "classic",
-                render_mode="RGB+ED",                      # returns depth as last channel
                 channel_chunk=channel_chunk,              # let gsplat chunk channels if big
                 **kwargs,
             )
