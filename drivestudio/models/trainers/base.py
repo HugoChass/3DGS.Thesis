@@ -531,9 +531,6 @@ class BasicTrainer(nn.Module):
 
     def render_gaussians(self, gs: dataclass_gs, cam: dataclass_camera, **kwargs):
 
-        C = getattr(gs, "semantics", None)
-        C = 0 if (C is None) else gs.semantics.shape[-1]
-
         # You can set this once (e.g., in __init__) and pass it in; here we accept kwargs
         device, dtype = gs.rgbs.device, gs.rgbs.dtype
         palette = get_semantic_palette(device=device, dtype=dtype)
@@ -544,16 +541,7 @@ class BasicTrainer(nn.Module):
             if opacity_mask is not None:
                 opacities = opacities * opacity_mask
 
-            # Pack RGB + semantic logits for one-pass rendering
-            if C > 0:
-                sem = gs.semantics
-                if sem.dtype != torch.float16:
-                    sem = sem.half()
-                colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)
-                channel_chunk = max(32, 3 + C)
-            else:
-                colors_all = gs.rgbs
-                channel_chunk = 32
+            colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)
 
             # one-pass render of RGB+sem (+depth at the end if requested)
             renders, alphas, info = rasterization(
@@ -570,7 +558,7 @@ class BasicTrainer(nn.Module):
                 absgrad=self.render_cfg.absgrad,
                 sparse_grad=self.render_cfg.sparse_grad,
                 rasterize_mode="antialiased" if self.render_cfg.antialiased else "classic",
-                channel_chunk=channel_chunk,              # let gsplat chunk channels if big
+                channel_chunk=32
                 **kwargs,
             )
 
@@ -578,14 +566,9 @@ class BasicTrainer(nn.Module):
             alphas = alphas[0].squeeze(-1) # [H, W]
 
             # split back out
-            if C > 0:
-                rgb = img[..., :3]
-                sem_logits = img[..., 3:3+C]
-                depth = img[..., 3+C:3+C+1]
-            else:
-                rgb = img[..., :3]
-                sem_logits = None
-                depth = img[..., 3:4]
+            rgb = img[..., :3]
+            sem_logits = None
+            depth = img[..., 3:4]
 
             rgb = torch.clamp(rgb, max=1.0)
 
@@ -610,6 +593,11 @@ class BasicTrainer(nn.Module):
 
         results = {"rgb_gaussians": rgb, "depth": depth, "opacity": opacity}
         if sem is not None:
+            alpha_total = opacity.squeeze(-1)   
+            m_bg_empty = (1.0 - alpha_total).clamp_min(0.0)[..., None]  # [H,W,1]
+            m_all = torch.cat([sem, m_bg_empty], dim=-1) 
+            sem = m_all / (m_all.sum(dim=-1, keepdim=True) + 1e-6)  # closed simplex
+
             sem_labels = sem.argmax(-1, keepdim=True).to(torch.int32)
             results["semantic_logits"]  = sem                 # [H, W, C] (alpha-blended logits)
             results["semantic_probs"]   = sem.float().softmax(-1)
@@ -618,17 +606,8 @@ class BasicTrainer(nn.Module):
             # ---- Palette visualization with background color ----
             # background = last entry of palette
             if palette is not None:
-                assert palette.ndim == 2 and palette.shape[1] == 3, \
-                    "palette must be [C+1, 3] in RGB"
-                assert palette.shape[0] == (C + 1), \
-                    f"palette should have C+1 rows (got {palette.shape[0]} vs {C+1})"
-
-                # Decide background from opacity (where scene not covered enough)
-                bg_mask = (opacity.squeeze(-1) < bg_opacity_thresh)  # [H, W]
-
-                # Compose an index image with background index = C
-                idx_vis = sem_labels.clone()
-                idx_vis[bg_mask] = 18  # last palette entry
+                # Compose an index image with background 
+                idx_vis = sem.detach().argmax(dim=-1)
 
                 # Map to colors
                 # palette device/dtype safety
@@ -638,10 +617,8 @@ class BasicTrainer(nn.Module):
                 results["semantic_rgb"] = sem_vis  # colored visualization in [0,1]
 
                 # Visulaisation but without unknown labels
-
-                idx_vis = sem[:, :, :-1].argmax(-1, keepdim=True).to(torch.int32)
-                idx_vis[bg_mask] = 18  # last palette entry
-
+                sem = torch.cat([sem[:, :, :-2], sem[:, :, -1:]], dim=2).argmax(dim=-1)
+                
                 # Map to colors
                 # palette device/dtype safety
                 pal = palette.to(device=idx_vis.device, dtype=rgb.dtype)  # [C+1,3]
@@ -808,7 +785,7 @@ class BasicTrainer(nn.Module):
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_logits = outputs["semantic_logits"]
             gt_semantics = image_infos["lidar_semantics_map"]
-            labeled_mask = (gt_semantics != 17).bool()
+            labeled_mask = (gt_semantics != 17) & (gt_semantics != 18)
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
 
             # binary loss/ misclassification
