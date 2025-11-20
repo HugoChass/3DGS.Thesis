@@ -541,6 +541,7 @@ class BasicTrainer(nn.Module):
             if opacity_mask is not None:
                 opacities = opacities * opacity_mask
 
+            sem = gs.semantics
             colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)
 
             # one-pass render of RGB+sem (+depth at the end if requested)
