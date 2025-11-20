@@ -96,7 +96,7 @@ def sparse_lidar_map_downsampler(lidar_depth_map, downscale_factor):
 def downsample_sparse_mode_anyscale(sem_map: torch.Tensor,
                                     scale: float,
                                     num_classes: int,
-                                    ignore_index: int = 17,
+                                    ignore_index: int = 18,
                                     valid_thresh: float = 0.0) -> torch.Tensor:
     """
     Downsample sparse labels for arbitrary scale (e.g., 0.25) using area resampling.
@@ -652,7 +652,7 @@ class CameraData(object):
             lidar_semantics_map = self.lidar_semantics_maps[frame_idx]
             if self.downscale_factor != 1.0:
                 targ_h, targ_w = lidar_depth_map.shape
-                lidar_semantics_map = downsample_sparse_mode_anyscale(lidar_semantics_map, self.downscale_factor, 18)
+                lidar_semantics_map = downsample_sparse_mode_anyscale(lidar_semantics_map, self.downscale_factor, 19)
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
