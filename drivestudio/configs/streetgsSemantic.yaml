@@ -37,7 +37,7 @@ trainer:
       iou_w: 0.5
       use_01: False
       loss_01_w: 1.0
-      use_ce: True
+      use_ce: False
       loss_ce_w: 0.1
   res_schedule:
     double_steps: 250 # training starts at 1/d resolution, every n steps this is doubled
