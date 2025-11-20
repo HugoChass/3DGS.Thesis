@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import kornia
 from enum import IntEnum
@@ -531,26 +532,28 @@ class BasicTrainer(nn.Module):
 
     def render_gaussians(self, gs: dataclass_gs, cam: dataclass_camera, **kwargs):
 
-        # You can set this once (e.g., in __init__) and pass it in; here we accept kwargs
         device, dtype = gs.rgbs.device, gs.rgbs.dtype
-        palette = get_semantic_palette(device=device, dtype=dtype)
-        bg_opacity_thresh = 1e-2
+        palette = get_semantic_palette(device=device, dtype=dtype)  # [C+1,3] incl. bg
+
+        # Get semantic size
+        assert hasattr(gs, "semantics"), "gs.semantics must exist"
+        C = gs.semantics.shape[-1]  # num semantic classes (no bg)
 
         def render_fn(opacity_mask=None, return_info=False):
             opacities = gs.opacities.squeeze()
             if opacity_mask is not None:
                 opacities = opacities * opacity_mask
 
+            # Pack RGB + semantic logits
             sem = gs.semantics
-            colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)
+            colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)  # [N, 3+C]
 
-            # one-pass render of RGB+sem (+depth at the end if requested)
             renders, alphas, info = rasterization(
                 means=gs.means,
                 quats=gs.quats,
                 scales=gs.scales,
                 opacities=opacities,
-                colors=colors_all,                         # [N, 3+C]
+                colors=colors_all,  # [N, 3+C]
                 viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],
                 Ks=cam.Ks[None, ...],
                 width=cam.W,
@@ -562,75 +565,77 @@ class BasicTrainer(nn.Module):
                 **kwargs,
             )
 
-            img = renders[0]               # [H, W, (3+C)+1]
-            alphas = alphas[0].squeeze(-1) # [H, W]
+            img    = renders[0]               # [H, W, 3+C+1]
+            alphas = alphas[0].squeeze(-1)    # [H, W]
 
-            # split back out
-            rgb = img[..., :3]
-            sem_logits = None
-            depth = img[..., 3:4]
+            # Split channels: [RGB | C semantic | depth]
+            rgb        = img[..., :3]
+            sem_logits = img[..., 3:3 + C]        # [H, W, C]
+            depth      = img[..., 3 + C:3 + C + 1]
 
             rgb = torch.clamp(rgb, max=1.0)
 
             if not return_info:
-                if sem_logits is None:
-                    return rgb, depth, alphas[..., None]
-                else:
-                    return rgb, depth, alphas[..., None], sem_logits
+                return rgb, depth, alphas[..., None], sem_logits
             else:
-                if sem_logits is None:
-                    return rgb, depth, alphas[..., None], info
-                else:
-                    return rgb, depth, alphas[..., None], sem_logits, info
+                return rgb, depth, alphas[..., None], sem_logits, info
 
         # main call
-        out = render_fn(return_info=True)
-        if len(out) == 4:
-            rgb, depth, opacity, self.info = out
-            sem = None
-        else:
-            rgb, depth, opacity, sem, self.info = out
+        rgb, depth, opacity, sem_logits, self.info = render_fn(return_info=True)
 
-        results = {"rgb_gaussians": rgb, "depth": depth, "opacity": opacity}
-        if sem is not None:
-            alpha_total = opacity.squeeze(-1)   
-            m_bg_empty = (1.0 - alpha_total).clamp_min(0.0)[..., None]  # [H,W,1]
-            m_all = torch.cat([sem, m_bg_empty], dim=-1) 
-            sem = m_all / (m_all.sum(dim=-1, keepdim=True) + 1e-6)  # closed simplex
+        results = {
+            "rgb_gaussians": rgb,
+            "depth": depth,
+            "opacity": opacity,
+        }
 
-            sem_labels = sem.argmax(-1, keepdim=True).to(torch.int32)
-            results["semantic_logits"]  = sem                 # [H, W, C] (alpha-blended logits)
-            results["semantic_probs"]   = sem.float().softmax(-1)
-            results["semantic_label"]  = sem_labels
+        # ---- semantic post-processing ----
+        # sem_logits: [H, W, C] (no bg)
+        if sem_logits is not None:
+            # foreground probs from logits
+            fg_probs = sem_logits.float().softmax(-1)  # [H,W,C]
 
-            # ---- Palette visualization with background color ----
-            # background = last entry of palette
+            # background mass ~ 1 - accumulated alpha
+            alpha_total = opacity.squeeze(-1)          # [H,W]
+            bg_prob = (1.0 - alpha_total).clamp_min(0.0)[..., None]  # [H,W,1]
+
+            # combine foreground + background probs, normalize
+            sem_all = torch.cat([fg_probs, bg_prob], dim=-1)  # [H,W,C+1]
+            sem_all = sem_all / (sem_all.sum(dim=-1, keepdim=True) + 1e-6)
+
+            # class indices including bg
+            sem_labels = sem_all.argmax(-1, keepdim=True).to(torch.int32)  # [H,W,1]
+
+            results["semantic_logits"] = sem_logits          # blended logits (no bg)
+            results["semantic_probs"]  = sem_all             # probs (C+1 incl. bg)
+            results["semantic_label"]  = sem_labels          # [H,W,1]
+
+            # ---- Palette visualization (with bg color = last palette entry) ----
             if palette is not None:
-                # Compose an index image with background 
-                idx_vis = sem.detach().argmax(dim=-1)
+                assert palette.shape[0] == sem_all.shape[-1], \
+                    f"palette rows {palette.shape[0]} must match C+1={sem_all.shape[-1]}"
+                pal = palette.to(device=rgb.device, dtype=rgb.dtype)  # [C+1,3]
 
-                # Map to colors
-                # palette device/dtype safety
-                pal = palette.to(device=idx_vis.device, dtype=rgb.dtype)  # [C+1,3]
-                sem_vis = pal[idx_vis]  # [H, W, 3]
+                idx_vis = sem_all.detach().argmax(dim=-1)   # [H,W]
+                sem_vis = pal[idx_vis]                      # [H,W,3]
+                results["semantic_rgb"] = sem_vis
 
-                results["semantic_rgb"] = sem_vis  # colored visualization in [0,1]
+                # ---- Visualization without 'unknown' labels ----
+                # assume 'unknown' is second-to-last index, map it to background
+                num_cls_plus_bg = sem_all.shape[-1]
+                unknown_idx = num_cls_plus_bg - 2   # second-to-last
+                bg_idx      = num_cls_plus_bg - 1   # last (background)
 
-                # Visulaisation but without unknown labels
-                sem = torch.cat([sem[:, :, :-2], sem[:, :, -1:]], dim=2).argmax(dim=-1)
-                
-                # Map to colors
-                # palette device/dtype safety
-                pal = palette.to(device=idx_vis.device, dtype=rgb.dtype)  # [C+1,3]
-                sem_vis = pal[idx_vis]  # [H, W, 3]
+                idx_no_unknown = idx_vis.clone()
+                idx_no_unknown[idx_no_unknown == unknown_idx] = bg_idx
 
-                results["semantic_rgb_no_unlabelled"] = sem_vis  # colored visualization in [0,1]
+                sem_vis_no_unl = pal[idx_no_unknown]        # [H,W,3]
+                results["semantic_rgb_no_unlabelled"] = sem_vis_no_unl
 
         if self.training:
             self.info["means2d"].retain_grad()
 
         return results, render_fn
-
 
     def affine_transformation(
         self,
@@ -788,8 +793,29 @@ class BasicTrainer(nn.Module):
             labeled_mask = (gt_semantics != 17) & (gt_semantics != 18)
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
 
-            # binary loss/ misclassification
             sem_losses = {}
+            # CE loss
+            if use_ce:
+                H, W, K = pred_semantic_logits.shape
+
+                logits_flat = pred_semantic_logits.view(-1, K)   # [HW, K]
+                gt_flat     = gt_semantics.view(-1)              # [HW]
+                mask_flat   = labeled_mask.view(-1)              # [HW]
+
+                idx = mask_flat.nonzero(as_tuple=False).squeeze(1)   # [N]
+                if idx.numel() > 0:
+                    logits_lab = logits_flat[idx]                # [N, K]
+                    gt_lab     = gt_flat[idx].long()             # [N]
+
+                    # IMPORTANT: ensure gt_lab is in [0, K-1]
+                    # (you already mask out 17 and 18, so those won't appear)
+                    loss_ce = F.cross_entropy(logits_lab, gt_lab, reduction="mean")
+                else:
+                    loss_ce = logits_flat.new_tensor(0.0)
+
+                sem_losses["semantic_CE_loss"] = semce * loss_ce
+
+            # binary loss/ misclassification
             if use_01:
                 mism = (pred_semantic_labels != gt_semantics) & labeled_mask
                 sem01 = mism.float().sum() / total_labeled
@@ -822,30 +848,6 @@ class BasicTrainer(nn.Module):
                     iou_loss = pred_semantic_labels.new_tensor(0.0)
 
                 sem_losses["semantic_iou_loss"] = iou_w * iou_loss
-
-            # CE loss
-            if use_ce:
-                eps = 1e-8
-                H, W, K = pred_semantic_logits.shape
-
-                # Flatten for easy masked gather
-                logits_flat = pred_semantic_logits.view(-1, K)                  # [HW, K]
-                gt_flat    = gt_semantics.view(-1)                            # [HW]
-                mask_flat  = labeled_mask.view(-1)                            # [HW]
-
-                # Keep only labeled pixels
-                idx = mask_flat.nonzero(as_tuple=False).squeeze(1)            # [N]
-                if idx.numel() > 0:
-                    logits_lab = logits_flat[idx]                               # [N, K]
-                    gt_lab    = gt_flat[idx].long()                           # [N]
-
-                    # Gather p_true for each labeled pixel
-                    p_true = logits_lab.gather(1, gt_lab.unsqueeze(1)).clamp_min(eps)  # [N, 1]
-                    loss_ce = -p_true.log().mean()
-                else:
-                    loss_ce = logits_flat.new_tensor(0.0)
-
-                sem_losses["semantic_CE_loss"] = semce * loss_ce
 
             
             if len(sem_losses) > 0:
