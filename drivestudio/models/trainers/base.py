@@ -779,13 +779,12 @@ class BasicTrainer(nn.Module):
             
         # semantic loss
         if self.semantic_loss_cfg is not None:
-            unknown_id   = -1
             use_iou      = self.semantic_loss_cfg.get("use_iou", False)
             iou_w        = self.semantic_loss_cfg.get("iou_w", 1.0)
             use_01       = self.semantic_loss_cfg.get("use_01", False)
             loss_01_w    = self.semantic_loss_cfg.get("01_w", 0.5)
             use_ce       = self.semantic_loss_cfg.get("use_ce", True)
-            semce        = self.semantic_loss_cfg.get("ce", 0.5)
+            semce        = self.semantic_loss_cfg.get("loss_ce_w", 0.1)
 
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_logits = outputs["semantic_logits"]
@@ -813,7 +812,15 @@ class BasicTrainer(nn.Module):
                 else:
                     loss_ce = logits_flat.new_tensor(0.0)
 
-                sem_losses["semantic_CE_loss"] = semce * loss_ce
+                warmup_start = 5000
+                full_weight_step = 15000
+                if self.step < warmup_start:
+                    semce_weight = 0.0
+                else:
+                    t = (self.step - warmup_start) / max(1, full_weight_step - warmup_start)
+                    semce_weight = semce * t.clamp(0.0, 1.0)
+
+                sem_losses["semantic_CE_loss"] = semce_weight * loss_ce
 
             # binary loss/ misclassification
             if use_01:
