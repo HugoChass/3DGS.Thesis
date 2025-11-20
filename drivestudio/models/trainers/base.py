@@ -818,7 +818,7 @@ class BasicTrainer(nn.Module):
                     semce_weight = 0.0
                 else:
                     t = (self.step - warmup_start) / max(1, full_weight_step - warmup_start)
-                    semce_weight = semce * t.clamp(0.0, 1.0)
+                    semce_weight = semce * t
 
                 sem_losses["semantic_CE_loss"] = semce_weight * loss_ce
 
