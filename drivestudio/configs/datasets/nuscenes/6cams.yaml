@@ -21,7 +21,7 @@ data:
     downscale_when_loading: [3, 3, 3, 3, 3, 3] # the size of the images to load
     downscale: 1 # downscale factor wrt to the downscale_when_loading
     undistort: False # whether to undistort the images
-    test_image_stride: 0 # use every Nth timestep for the test set. if 0, use all images for training and none for testing
+    test_image_stride: 10 # use every Nth timestep for the test set. if 0, use all images for training and none for testing
     load_sky_mask: True # whether to load sky mask
     load_dynamic_mask: True # whether to load dynamic mask
     load_objects: True # whether to load object bounding boxes
