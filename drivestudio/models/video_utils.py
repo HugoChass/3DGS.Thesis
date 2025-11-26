@@ -16,6 +16,7 @@ from utils.visualization import (
     to8b,
     depth_visualizer,
 )
+from tools.semantic_metrics import *
 
 logger = logging.getLogger()
 
@@ -80,6 +81,11 @@ def render_images(
         logger.info(f"\t  Human-Only SSIM: {render_results['human_ssim']:.4f}")
         logger.info(f"\tVehicle-Only PSNR: {render_results['vehicle_psnr']:.4f}")
         logger.info(f"\tVehicle-Only SSIM: {render_results['vehicle_ssim']:.4f}")
+        logger.info(f"\t         Mean IoU: {render_results['miou']:.4f}")
+        logger.info(f"\t    Per class IoU: {render_results['per_class_iou']:.4f}")
+        logger.info(f"\tPer class precision: {render_results['per_class_precision']:.4f}")
+        logger.info(f"\t  Per class recal: {render_results['per_class_recall']:.4f}")
+        logger.info(f"\t     Per class F1: {render_results['per_class_f1']:.4f}")
 
     return render_results
 
@@ -126,6 +132,11 @@ def render(
         human_psnrs, human_ssims = [], []
         vehicle_psnrs, vehicle_ssims = [], []
         occupied_psnrs, occupied_ssims = [], []
+        all_per_class_iou = []
+        all_per_class_precision = []
+        all_per_class_recall = []
+        all_per_class_f1 = []
+        all_miou = []
 
     with torch.no_grad():
         indices = vis_indices if vis_indices is not None else range(len(dataset))
@@ -237,6 +248,10 @@ def render(
                 semantics_rgbs.append(get_numpy(results['semantic_rgb']))
                 semantics_rgbs_no_unlabelled.append(get_numpy(results['semantic_rgb_no_unlabelled']))
                 gt_semantic_map.append(get_numpy(results['gt_semantic_map']))
+                semantics_label = get_numpy(results['semantic_label'])
+                gt_map = get_numpy(results['gt_semantic_map'])
+                NUM_SEM_CLASSES = 18
+                IGNORE_LABEL = 18
 
             if compute_metrics:
                 psnr = compute_psnr(rgb, image_infos["pixels"])
@@ -254,6 +269,29 @@ def render(
                 psnrs.append(psnr)
                 ssim_scores.append(ssim_score)
                 lpipss.append(lpips.item())
+
+                if "semantic_rgb" in results:
+                    sem_metrics = compute_semantic_metrics(
+                    preds=semantics_label,
+                    gts=gt_map,
+                    num_classes=NUM_SEM_CLASSES,
+                    ignore_label=IGNORE_LABEL,
+                    )
+
+                    logger.info(f"Semantic mIoU: {sem_metrics['miou']:.4f}")
+                    # You can also log per-class stuff:
+                    for cid in range(NUM_SEM_CLASSES):
+                        logger.info(
+                            f"Class {cid}: IoU={sem_metrics['per_class_iou'][cid]:.4f}, "
+                            f"Prec={sem_metrics['per_class_precision'][cid]:.4f}, "
+                            f"Rec={sem_metrics['per_class_recall'][cid]:.4f}, "
+                            f"F1={sem_metrics['per_class_f1'][cid]:.4f}"
+                        )
+                    all_per_class_iou.append(sem_metrics["per_class_iou"])
+                    all_per_class_precision.append(sem_metrics["per_class_precision"])
+                    all_per_class_recall.append(sem_metrics["per_class_recall"])
+                    all_per_class_f1.append(sem_metrics["per_class_f1"])
+                    all_miou.append(sem_metrics["miou"])
                 
                 if "sky_masks" in image_infos:
                     occupied_mask = ~get_numpy(image_infos["sky_masks"]).astype(bool)
@@ -344,6 +382,14 @@ def render(
     results_dict["depths"] = depths
     results_dict["cam_names"] = cam_names
     results_dict["cam_ids"] = cam_ids
+    # scalar mIoU
+    results_dict["miou"] = non_zero_mean(all_miou) if compute_metrics else -1
+
+    # per-class metrics: compute mean across frames
+    results_dict["per_class_iou"] = np.mean(np.stack(all_per_class_iou, axis=0), axis=0) if compute_metrics else -1
+    results_dict["per_class_precision"] = np.mean(np.stack(all_per_class_precision, axis=0), axis=0) if compute_metrics else -1
+    results_dict["per_class_recall"] = np.mean(np.stack(all_per_class_recall, axis=0), axis=0) if compute_metrics else -1
+    results_dict["per_class_f1"] = np.mean(np.stack(all_per_class_f1, axis=0), axis=0) if compute_metrics else -1
     if len(opacities) > 0:
         results_dict["opacities"] = opacities
     if len(gt_rgbs) > 0:
