@@ -82,10 +82,10 @@ def render_images(
         logger.info(f"\tVehicle-Only PSNR: {render_results['vehicle_psnr']:.4f}")
         logger.info(f"\tVehicle-Only SSIM: {render_results['vehicle_ssim']:.4f}")
         logger.info(f"\t         Mean IoU: {render_results['miou']:.4f}")
-        logger.info(f"\t    Per class IoU: {render_results['per_class_iou']:.4f}")
-        logger.info(f"\tPer class precision: {render_results['per_class_precision']:.4f}")
-        logger.info(f"\t  Per class recal: {render_results['per_class_recall']:.4f}")
-        logger.info(f"\t     Per class F1: {render_results['per_class_f1']:.4f}")
+        logger.info(f"\t    Per class IoU: {render_results['per_class_iou']}")
+        logger.info(f"\tPer class precision: {render_results['per_class_precision']}")
+        logger.info(f"\t  Per class recal: {render_results['per_class_recall']}")
+        logger.info(f"\t     Per class F1: {render_results['per_class_f1']}")
 
     return render_results
 
