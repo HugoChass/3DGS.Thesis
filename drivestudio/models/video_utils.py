@@ -250,7 +250,6 @@ def render(
                 gt_semantic_map.append(get_numpy(results['gt_semantic_map']))
                 semantics_label = get_numpy(results['semantic_label'])
                 gt_map = get_numpy(results['gt_semantics'])
-                print(semantics_label.shape, gt_map.shape)
                 NUM_SEM_CLASSES = 18
                 IGNORE_LABEL = 18
 

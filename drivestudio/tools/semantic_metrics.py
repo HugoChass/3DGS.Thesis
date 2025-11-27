@@ -33,7 +33,6 @@ def _flatten_labels(preds, gts, ignore_label=None):
     """
     preds = _ensure_list(preds)
     gts = _ensure_list(gts)
-    print(preds.shape, gts.shape)
 
     assert len(preds) == len(gts), "preds and gts must have same length"
 
@@ -146,7 +145,6 @@ def compute_semantic_metrics(preds, gts, num_classes, ignore_label=None):
         "per_class_f1": (C,),
       }
     """
-    print(preds.shape, gts.shape)
     confmat = compute_confusion_matrix(preds, gts, num_classes, ignore_label)
     per_class_iou, miou = compute_miou_from_confmat(confmat)
     prf = compute_precision_recall_f1_from_confmat(confmat)
