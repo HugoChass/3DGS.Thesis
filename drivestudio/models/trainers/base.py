@@ -701,6 +701,7 @@ class BasicTrainer(nn.Module):
         gt_semantic = torch.tensor(gt_semantic, device=device, dtype=torch.long)
         gt_semantic_map = palette[gt_semantic.view(-1)].view(H, W, 3).clone()
         outputs.update({"gt_semantic_map": gt_semantic_map})
+        outputs["gt_semantics"] = gt_semantic
 
         # render sky
         sky_model = self.models['Sky']
