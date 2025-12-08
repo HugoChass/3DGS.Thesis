@@ -116,6 +116,19 @@ class BasicTrainer(nn.Module):
         self.step = 0
         self.device = device
         
+        self.num_semantic_classes = 18  # K
+        self.semantic_feat_dim = 256        # D
+        self.clip_feat_dim = 512
+
+        # Projection head from logits (K) to semantic feature space (D)
+        self.semantic_proj = nn.Linear(self.num_semantic_classes,
+                                       self.semantic_feat_dim)
+        
+
+        # Teacher: CLIP feature space (D_clip) → same space as student (D_student)
+        self.teacher_proj  = nn.Linear(self.clip_feat_dim,
+                                       self.semantic_feat_dim)
+
         # dataset infos
         self.num_train_images = num_train_images
         self.num_full_images = num_full_images
@@ -610,6 +623,20 @@ class BasicTrainer(nn.Module):
             results["semantic_probs"]  = sem_all             # probs (C+1 incl. bg)
             results["semantic_label"]  = sem_labels          # [H,W,1]
 
+            # pred_semantic_logits: [H, W, K]
+            H, W, K = sem_logits.shape
+            assert K == self.num_semantic_classes, "Logit dim must match num_semantic_classes"
+
+            # Flatten spatial dims so we can apply Linear(K → D)
+            logits_flat = sem_logits.view(-1, K)            # [H*W, K]
+
+            # Project to D-dim semantic feature space (student features)
+            feat_flat = self.semantic_proj(logits_flat)               # [H*W, D]
+
+            # Reshape back to image grid
+            pred_semantic_features = feat_flat.view(H, W, self.semantic_feat_dim)  # [H, W, D]
+            results["semantic_features"] = pred_semantic_features     # [H, W, D]
+
             # ---- Palette visualization (with bg color = last palette entry) ----
             if palette is not None:
                 assert palette.shape[0] == sem_all.shape[-1], \
@@ -780,90 +807,197 @@ class BasicTrainer(nn.Module):
             
         # semantic loss
         if self.semantic_loss_cfg is not None:
-            use_iou      = self.semantic_loss_cfg.get("use_iou", False)
-            iou_w        = self.semantic_loss_cfg.get("iou_w", 1.0)
-            use_01       = self.semantic_loss_cfg.get("use_01", False)
-            loss_01_w    = self.semantic_loss_cfg.get("01_w", 0.5)
-            use_ce       = self.semantic_loss_cfg.get("use_ce", True)
-            semce        = self.semantic_loss_cfg.get("loss_ce_w", 0.1)
+            cfg = self.semantic_loss_cfg
 
+            # Toggles
+            use_ce          = cfg.get("use_ce", True)
+            use_focal       = cfg.get("use_focal", False)
+            use_contrastive = cfg.get("use_contrastive", False)
+            use_reg         = cfg.get("use_reg", False)
+
+            # Weights
+            semce_w   = cfg.get("loss_ce_w", 0.1)
+            semfocal_w = cfg.get("loss_focal_w", 0.0)
+            semcont_w  = cfg.get("loss_contrastive_w", 0.0)
+            semreg_w   = cfg.get("loss_reg_w", 0.0)
+
+            # Focal parameters
+            focal_alpha = cfg.get("focal_alpha", 0.25)
+            focal_gamma = cfg.get("focal_gamma", 2.0)
+
+            # Regularization parameters
+            # reg_type: "entropy" (default) or "l2"
+            reg_type = cfg.get("reg_type", "entropy")
+
+            # Shared data
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_logits = outputs["semantic_logits"]
-            gt_semantics = image_infos["lidar_semantics_map"]
+            gt_semantics         = image_infos["lidar_semantics_map"]
+
+            # mask out unlabeled classes (17, 18)
             labeled_mask = (gt_semantics != 17) & (gt_semantics != 18)
             total_labeled = labeled_mask.float().sum().clamp_min(1.0)
 
             sem_losses = {}
-            # CE loss
+
+            # Precompute flattened tensors once (for all pixel-wise losses)
+            H, W, K = pred_semantic_logits.shape  # [H, W, num_classes]
+
+            logits_flat = pred_semantic_logits.view(-1, K)  # [HW, K]
+            gt_flat     = gt_semantics.view(-1)             # [HW]
+            mask_flat   = labeled_mask.view(-1)             # [HW]
+
+            idx = mask_flat.nonzero(as_tuple=False).squeeze(1)  # [N] indices of labeled pixels
+            has_labeled = idx.numel() > 0
+
+            # Small helper for warmup on *all* semantic losses
+            warmup_start = cfg.get("warmup_start", 5000)
+            full_weight_step = cfg.get("full_weight_step", 15000)
+
+            def apply_warmup(base_weight: float) -> float:
+                if base_weight <= 0.0:
+                    return 0.0
+                if self.step < warmup_start:
+                    return 0.0
+                t = (self.step - warmup_start) / max(1, full_weight_step - warmup_start)
+                return base_weight * t
+
+            # ------------------------------------------------------------------
+            # 1) CE loss (already implemented, just slightly refactored)
+            # ------------------------------------------------------------------
             if use_ce:
-                H, W, K = pred_semantic_logits.shape
+                if has_labeled:
+                    logits_lab = logits_flat[idx]    # [N, K]
+                    gt_lab     = gt_flat[idx].long() # [N]
 
-                logits_flat = pred_semantic_logits.view(-1, K)   # [HW, K]
-                gt_flat     = gt_semantics.view(-1)              # [HW]
-                mask_flat   = labeled_mask.view(-1)              # [HW]
-
-                idx = mask_flat.nonzero(as_tuple=False).squeeze(1)   # [N]
-                if idx.numel() > 0:
-                    logits_lab = logits_flat[idx]                # [N, K]
-                    gt_lab     = gt_flat[idx].long()             # [N]
-
-                    # IMPORTANT: ensure gt_lab is in [0, K-1]
-                    # (you already mask out 17 and 18, so those won't appear)
+                    # IMPORTANT: ensure gt_lab in [0, K-1]; 17 & 18 were masked out
                     loss_ce = F.cross_entropy(logits_lab, gt_lab, reduction="mean")
                 else:
                     loss_ce = logits_flat.new_tensor(0.0)
 
-                warmup_start = 5000
-                full_weight_step = 15000
-                if self.step < warmup_start:
-                    semce_weight = 0.0
-                else:
-                    t = (self.step - warmup_start) / max(1, full_weight_step - warmup_start)
-                    semce_weight = semce * t
-
+                semce_weight = apply_warmup(semce_w)
                 sem_losses["semantic_CE_loss"] = semce_weight * loss_ce
 
-            # binary loss/ misclassification
-            if use_01:
-                mism = (pred_semantic_labels != gt_semantics) & labeled_mask
-                sem01 = mism.float().sum() / total_labeled
-                sem_losses["semantic_01_loss"] = loss_01_w * sem01
+            # ------------------------------------------------------------------
+            # 2) Focal loss (same logits / labels as CE, better for class imbalance)
+            # ------------------------------------------------------------------
+            if use_focal:
+                if has_labeled:
+                    logits_lab = logits_flat[idx]    # [N, K]
+                    gt_lab     = gt_flat[idx].long() # [N]
 
-            # mIoU loss
-            if use_iou:
-                # infer number of classes from maps (ignore -1)
-                max_pred = (pred_semantic_labels[pred_semantic_labels != -1].max() if (pred_semantic_labels != -1).any() else torch.tensor(0, device=pred_semantic_labels.device))
-                max_gt   = (gt_semantics[gt_semantics != -1].max() if (gt_semantics   != -1).any() else torch.tensor(0, device=gt_semantics.device))
-                num_classes = int(torch.max(max_pred, max_gt).item()) + 1
+                    # standard focal loss on logits_lab, gt_lab
+                    # Compute softmax probabilities
+                    log_probs = F.log_softmax(logits_lab, dim=-1)             # [N, K]
+                    probs     = log_probs.exp()                               # [N, K]
 
-                # which class ids to include in IoU
-                classes = torch.arange(num_classes, device=pred_semantic_labels.device)
+                    # Gather probabilities of the true class
+                    gt_lab_unsqueezed = gt_lab.unsqueeze(1)                  # [N, 1]
+                    p_t = probs.gather(1, gt_lab_unsqueezed).clamp_min(1e-6) # [N, 1]
 
-                ious = []
-                for c in classes.tolist():
-                    pred_c = (pred_semantic_labels == c) & labeled_mask
-                    gt_c   = (gt_semantics   == c) & labeled_mask
-                    inter = (pred_c & gt_c).sum().float()
-                    union = (pred_c | gt_c).sum().float()
-                    if union > 0:
-                        ious.append((inter / union).clamp(0.0, 1.0))
+                    # Focal weight
+                    focal_weight = (1.0 - p_t) ** focal_gamma                # [N, 1]
 
-                if len(ious) > 0:
-                    miou = torch.stack(ious).mean()
-                    iou_loss = (1.0 - miou)
+                    # Optional class-balancing alpha: assume scalar alpha for foreground,
+                    # we apply it to all classes for simplicity; you can extend this to per-class alpha.
+                    alpha_factor = focal_alpha
+
+                    # CE term (negative log-likelihood)
+                    ce_term = F.nll_loss(
+                        log_probs, gt_lab, reduction="none"
+                    ).unsqueeze(1)                                           # [N, 1]
+
+                    loss_focal = (alpha_factor * focal_weight * ce_term).mean()
                 else:
-                    # no supervised pixels for any class this step -> no signal
-                    iou_loss = pred_semantic_labels.new_tensor(0.0)
+                    loss_focal = logits_flat.new_tensor(0.0)
 
-                sem_losses["semantic_iou_loss"] = iou_w * iou_loss
+                semfocal_weight = apply_warmup(semfocal_w)
+                sem_losses["semantic_focal_loss"] = semfocal_weight * loss_focal
 
-            
+            # ------------------------------------------------------------------
+            # 3) Contrastive / feature-alignment loss
+            #    (simple cosine alignment between predicted semantic features
+            #     and some teacher features; safe no-op if features are missing)
+            # ------------------------------------------------------------------
+            # ------------------------------------------------------------------
+            # 3) Contrastive / feature-alignment loss (student vs CLIP teacher)
+            # ------------------------------------------------------------------
+            if use_contrastive:
+                # Expected:
+                #   outputs["semantic_features"]:           [H, W, D_student]
+                #   image_infos["semantic_teacher_features"]: [H, W, D_clip]
+                pred_sem_feats = outputs.get("semantic_features", None)
+                teacher_feats  = image_infos.get("semantic_teacher_features", None)
+
+                if (pred_sem_feats is not None) and (teacher_feats is not None):
+                    Hs, Ws, D_student = pred_sem_feats.shape
+                    Ht, Wt, D_clip    = teacher_feats.shape
+
+                    assert Hs == Ht and Ws == Wt, \
+                        f"Student and teacher spatial size mismatch: ({Hs},{Ws}) vs ({Ht},{Wt})"
+
+                    # Flatten spatial dims
+                    student_flat = pred_sem_feats.view(-1, D_student)   # [HW, D_student]
+                    teacher_flat = teacher_feats.view(-1, D_clip)       # [HW, D_clip]
+
+                    # Project teacher features into student feature space
+                    # self.teacher_proj: nn.Linear(D_clip, D_student)
+                    teacher_proj_flat = self.teacher_proj(teacher_flat) # [HW, D_student]
+
+                    # Optionally restrict to labeled pixels only
+                    if has_labeled:
+                        student_lab = student_flat[idx]                 # [N, D_student]
+                        teacher_lab = teacher_proj_flat[idx]            # [N, D_student]
+                    else:
+                        student_lab = student_flat                      # [HW, D_student]
+                        teacher_lab = teacher_proj_flat                 # [HW, D_student]
+
+                    # Normalize for cosine similarity
+                    student_norm = F.normalize(student_lab, p=2, dim=-1)
+                    teacher_norm = F.normalize(teacher_lab, p=2, dim=-1)
+
+                    cos_sim = (student_norm * teacher_norm).sum(dim=-1)      # [N] or [HW]
+                    # Contrastive-style alignment loss: encourage cos_sim → 1
+                    loss_contrastive = (1.0 - cos_sim).mean()
+                else:
+                    # If you don't have teacher features wired yet, this is a no-op
+                    loss_contrastive = pred_semantic_logits.new_tensor(0.0)
+
+                semcont_weight = apply_warmup(semcont_w)
+                sem_losses["semantic_contrastive_loss"] = semcont_weight * loss_contrastive
+
+
+            # ------------------------------------------------------------------
+            # 4) Regularization loss on semantic logits (entropy or L2)
+            # ------------------------------------------------------------------
+            if use_reg:
+                if has_labeled:
+                    logits_lab = logits_flat[idx]    # [N, K]
+                else:
+                    logits_lab = logits_flat         # fall back to all pixels [HW, K]
+
+                if reg_type == "entropy":
+                    # Encourage low-entropy (confident) predictions
+                    probs = F.softmax(logits_lab, dim=-1)           # [N, K]
+                    log_probs = torch.log(probs.clamp_min(1e-6))    # [N, K]
+                    entropy = -(probs * log_probs).sum(dim=-1)      # [N]
+                    loss_reg = entropy.mean()
+                elif reg_type == "l2":
+                    # Simple L2 penalty on logits magnitude
+                    loss_reg = (logits_lab ** 2).mean()
+                else:
+                    # Unknown reg type -> no-op
+                    loss_reg = logits_flat.new_tensor(0.0)
+
+                semreg_weight = apply_warmup(semreg_w)
+                sem_losses["semantic_reg_loss"] = semreg_weight * loss_reg
+
+            # ------------------------------------------------------------------
+            # Add semantic losses to main loss dict
+            # ------------------------------------------------------------------
             if len(sem_losses) > 0:
-                total_sem = sum(sem_losses.values())
-                # main weighted semantic term (uses your global weight)
-                #loss_dict["semantic_loss"] = self.losses_dict.semantics.w * total_sem
-                # also expose components for logging/inspection
                 loss_dict.update(sem_losses)
+
 
         # ----- reg loss -----
         opacity_entropy_reg = self.losses_dict.get("opacity_entropy", None)

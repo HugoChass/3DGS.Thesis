@@ -181,6 +181,7 @@ class CameraData(object):
         self.lidar_depth_maps = None # will be loaded by: self.load_depth()
         self.image_error_maps = None # will be built by: self.build_image_error_buffer()
         self.lidar_semantics_maps = None
+        self.clip_features = None
         self.to(self.device)
         self.downscale_factor = 1.0
         
@@ -426,6 +427,12 @@ class CameraData(object):
     ):
         self.lidar_semantics_maps = lidar_semantics_maps.to(self.device)
 
+    def load_clip_features(
+        self,
+        clip_features: Tensor,
+    ):
+        self.clip_features = clip_features.to(self.device)
+
     def load_time(
         self,
         normalized_time: Tensor,
@@ -519,6 +526,8 @@ class CameraData(object):
             self.lidar_depth_maps = self.lidar_depth_maps.to(device)
         if self.lidar_semantics_maps is not None:
             self.lidar_semantics_maps = self.lidar_semantics_maps.to(device)
+        if self.clip_features is not None:
+            self.clip_features = self.clip_features.to(device)
         if self.image_error_maps is not None:
             self.image_error_maps = self.image_error_maps.to(device)
     
@@ -650,9 +659,11 @@ class CameraData(object):
 
         if self.lidar_semantics_maps is not None:
             lidar_semantics_map = self.lidar_semantics_maps[frame_idx]
+            clip_feature = self.clip_features[frame_idx]
             if self.downscale_factor != 1.0:
                 targ_h, targ_w = lidar_depth_map.shape
                 lidar_semantics_map = downsample_sparse_mode_anyscale(lidar_semantics_map, self.downscale_factor, 19)
+                clip_feature = downsample_sparse_mode_anyscale(clip_feature, self.downscale_factor, 19)
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
@@ -698,6 +709,7 @@ class CameraData(object):
             "egocar_masks": egocar_mask,
             "lidar_depth_map": lidar_depth_map,
             "lidar_semantics_map": lidar_semantics_map,
+            "semantic_teacher_features": clip_feature,
         }
         image_infos = {k: v for k, v in _image_infos.items() if v is not None}
         

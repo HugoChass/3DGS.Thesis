@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 from tqdm import trange, tqdm
 from omegaconf import OmegaConf
+import open_clip
 
 import torch
 from torch import Tensor
@@ -82,6 +83,14 @@ class DrivingDataset(SceneDataset):
         self.project_lidar_pts_on_images(
             delete_out_of_view_points=True
         )
+
+        clip_model, _, preprocess = open_clip.create_model_and_transforms(
+            "ViT-B-32",
+            pretrained="laion2b_s34b_b79k",
+            device=self.device
+        )
+        self.compute_clip_teacher_features(clip_model)
+
         self.aabb = self.get_aabb()
 
         # ---- define train and test indices ---- #
@@ -788,7 +797,92 @@ class DrivingDataset(SceneDataset):
             
         if delete_out_of_view_points:
             self.lidar_source.delete_invisible_pts()
-            
+    
+    def compute_clip_teacher_features(self, clip_model, image_size=224, device=None):
+        """
+        Compute CLIP-based teacher features for each ground-truth image
+        and store them on each camera.
+
+        Args:
+            clip_model: a CLIP model with an `encode_image` method.
+                        It should already be moved to the correct device.
+            image_size: int
+                Spatial size that images are resized to before feeding CLIP (e.g. 224 for ViT-B/16).
+            device: torch.device or None
+                Device to run CLIP on. If None, uses self.device.
+        """
+        if device is None:
+            device = self.device
+
+        clip_model.eval()
+        for p in clip_model.parameters():
+            p.requires_grad_(False)
+
+        # Standard CLIP normalization (OpenAI CLIP values).
+        clip_mean = torch.tensor([0.48145466, 0.4578275, 0.40821073],
+                                device=device).view(1, 3, 1, 1)
+        clip_std = torch.tensor([0.26862954, 0.26130258, 0.27577711],
+                                device=device).view(1, 3, 1, 1)
+
+        for cam in self.pixel_source.camera_data.values():
+            clip_features = []  # will store [num_frames, D_clip]
+
+            for frame_idx in tqdm(
+                range(len(cam)),
+                desc=f"Computing CLIP teacher features for camera {cam.cam_name}",
+                dynamic_ncols=True,
+            ):
+                # ------------------------------------------------------------------
+                # 1) Get GT image for this camera frame
+                #    Assume cam.images[frame_idx]: [H, W, 3], uint8 or float in [0,1]
+                # ------------------------------------------------------------------
+                img = cam.images[frame_idx].to(device)
+
+                # Ensure float in [0, 1]
+                if img.dtype != torch.float32:
+                    img = img.float()
+                if img.max() > 1.0:
+                    img = img / 255.0
+
+                # HWC -> NCHW, add batch dim
+                if img.dim() == 3:
+                    # [H, W, 3] -> [1, 3, H, W]
+                    img = img.permute(2, 0, 1).unsqueeze(0)
+                elif img.dim() == 4:
+                    # if somehow already [3, H, W], just add batch dim
+                    if img.shape[0] == 3:
+                        img = img.unsqueeze(0)
+                    else:
+                        # assume already [1, 3, H, W]
+                        pass
+                else:
+                    raise ValueError(f"Unexpected image shape for CLIP: {img.shape}")
+
+                # ------------------------------------------------------------------
+                # 2) Resize & normalize as CLIP expects
+                # ------------------------------------------------------------------
+                img_resized = F.interpolate(
+                    img, size=(image_size, image_size),
+                    mode="bilinear", align_corners=False
+                )  # [1, 3, image_size, image_size]
+
+                img_norm = (img_resized - clip_mean) / clip_std
+
+                # ------------------------------------------------------------------
+                # 3) Run CLIP to get a global embedding for the image
+                # ------------------------------------------------------------------
+                with torch.no_grad():
+                    # OpenAI-style CLIP: encode_image returns [1, D_clip]
+                    feat = clip_model.encode_image(img_norm)  # [1, D_clip]
+                    feat = feat.squeeze(0)                    # [D_clip]
+
+                clip_features.append(feat)
+
+            # Stack to [num_frames, D_clip]
+            clip_features = torch.stack(clip_features, dim=0).to(device)  # [T, D_clip]
+
+            cam.load_clip_features(clip_features)
+
     def get_novel_render_traj(
         self,
         traj_types: List[str] = ["front_center_interp"],
