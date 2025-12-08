@@ -626,6 +626,10 @@ class BasicTrainer(nn.Module):
             # pred_semantic_logits: [H, W, K]
             H, W, K = sem_logits.shape
             assert K == self.num_semantic_classes, "Logit dim must match num_semantic_classes"
+            device = sem_logits.device
+
+            # Make sure the projection layers are on the same device as the logits
+            self.semantic_proj = self.semantic_proj.to(device)
 
             # Flatten spatial dims so we can apply Linear(K → D)
             logits_flat = sem_logits.view(-1, K)            # [H*W, K]
@@ -939,6 +943,11 @@ class BasicTrainer(nn.Module):
                     # Flatten spatial dims
                     student_flat = pred_sem_feats.view(-1, D_student)   # [HW, D_student]
                     teacher_flat = teacher_feats.view(-1, D_clip)       # [HW, D_clip]
+
+                    device = pred_semantic_logits.device
+
+                    # Make sure the projection layers are on the same device as the logits
+                    self.teacher_proj  = self.teacher_proj.to(device)  # if you use it here
 
                     # Project teacher features into student feature space
                     # self.teacher_proj: nn.Linear(D_clip, D_student)
