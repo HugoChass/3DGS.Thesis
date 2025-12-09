@@ -867,18 +867,9 @@ class DrivingDataset(SceneDataset):
                     feat = clip_model.encode_image(img_norm)  # [1, D_clip]
                     feat = feat.squeeze(0)                    # [D_clip]
 
-                D_clip = feat.shape[0]
+                clip_features.append(feat)
 
-                # ------------------------------------------------------------------
-                # 4) Broadcast this embedding to a feature map [H, W, D_clip]
-                # ------------------------------------------------------------------
-                # [D_clip] -> [1, 1, D_clip] -> [H, W, D_clip]
-                feat_map = feat.view(1, 1, D_clip).expand(H, W, D_clip)  # [H, W, D_clip]
-
-                clip_features.append(feat_map)
-
-            # Stack to [T, H, W, D_clip]
-            clip_features = torch.stack(clip_features, dim=0).to(device)  # [T, H, W, D_clip]
+            clip_features = torch.stack(clip_features, dim=0).to(device) 
 
             cam.load_clip_features(clip_features)
         

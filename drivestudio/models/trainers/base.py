@@ -865,6 +865,44 @@ class BasicTrainer(nn.Module):
                     return 0.0
                 t = (self.step - warmup_start) / max(1, full_weight_step - warmup_start)
                 return base_weight * t
+            
+                        # Small helper to get class-weights tensor on the right device
+            class_weight_mode = cfg.get("class_weight_mode", None)  # "manual", "inv_freq", or None
+            manual_class_weights = cfg.get("class_weights", None)
+            inv_freq_eps = cfg.get("inv_freq_eps", 1e-6)
+            normalize_class_weights = cfg.get("normalize_class_weights", True)
+
+            class_weights_tensor = None  # default: no class weighting
+
+            if class_weight_mode == "manual" and manual_class_weights is not None:
+                # Manual weights from config
+                assert len(manual_class_weights) == K, (
+                    f"class_weights length {len(manual_class_weights)} "
+                    f"must match num_classes {K}"
+                )
+                class_weights_tensor = logits_flat.new_tensor(
+                    manual_class_weights, dtype=torch.float32
+                )  # [K]
+
+            elif class_weight_mode == "inv_freq" and has_labeled:
+                # Inverse class frequency from current batch (only over labeled pixels)
+                gt_lab_for_weights = gt_flat[idx].long()  # [N]
+
+                # Count occurrences per class (including all K)
+                counts = torch.bincount(gt_lab_for_weights, minlength=K).float()  # [K]
+
+                # Avoid division by zero: for classes not present, we set weight 0
+                weights = torch.zeros_like(counts)
+                nonzero = counts > 0
+                weights[nonzero] = 1.0 / (counts[nonzero] + inv_freq_eps)
+
+                if normalize_class_weights and nonzero.any():
+                    # Normalize so that mean(weight over seen classes) ~ 1
+                    mean_w = weights[nonzero].mean()
+                    weights[nonzero] = weights[nonzero] / mean_w
+
+                class_weights_tensor = weights  # [K]
+            # else: keep class_weights_tensor = None (no per-class weighting)
 
             # ------------------------------------------------------------------
             # 1) CE loss (already implemented, just slightly refactored)
@@ -875,7 +913,11 @@ class BasicTrainer(nn.Module):
                     gt_lab     = gt_flat[idx].long() # [N]
 
                     # IMPORTANT: ensure gt_lab in [0, K-1]; 17 & 18 were masked out
-                    loss_ce = F.cross_entropy(logits_lab, gt_lab, reduction="mean")
+                    loss_ce = F.cross_entropy(
+                        logits_lab, gt_lab,
+                        weight=class_weights_tensor,  # None or [K]
+                        reduction="mean"
+                    )
                 else:
                     loss_ce = logits_flat.new_tensor(0.0)
 
@@ -911,7 +953,12 @@ class BasicTrainer(nn.Module):
                         log_probs, gt_lab, reduction="none"
                     ).unsqueeze(1)                                           # [N, 1]
 
-                    loss_focal = (alpha_factor * focal_weight * ce_term).mean()
+                    if class_weights_tensor is not None:
+                        per_class_w = class_weights_tensor[gt_lab].unsqueeze(1)  # [N, 1]
+                    else:
+                        per_class_w = 1.0
+
+                    loss_focal = (per_class_w * alpha_factor * focal_weight * ce_term).mean()
                 else:
                     loss_focal = logits_flat.new_tensor(0.0)
 
@@ -919,61 +966,50 @@ class BasicTrainer(nn.Module):
                 sem_losses["semantic_focal_loss"] = semfocal_weight * loss_focal
 
             # ------------------------------------------------------------------
-            # 3) Contrastive / feature-alignment loss
-            #    (simple cosine alignment between predicted semantic features
-            #     and some teacher features; safe no-op if features are missing)
-            # ------------------------------------------------------------------
-            # ------------------------------------------------------------------
-            # 3) Contrastive / feature-alignment loss (student vs CLIP teacher)
+            # 3) Contrastive / feature-alignment loss (global, no broadcasting)
             # ------------------------------------------------------------------
             if use_contrastive:
-                # Expected:
-                #   outputs["semantic_features"]:           [H, W, D_student]
-                #   image_infos["semantic_teacher_features"]: [H, W, D_clip]
-                pred_sem_feats = outputs.get("semantic_features", None)
-                teacher_feats  = image_infos.get("semantic_teacher_features", None)
+                device = pred_semantic_logits.device
+                pred_sem_feats = outputs.get("semantic_features", None).to(device)
+                teacher_vec    = image_infos.get("semantic_teacher_features", None).to(device)
 
-                if (pred_sem_feats is not None) and (teacher_feats is not None):
+                if (pred_sem_feats is not None) and (teacher_vec is not None):
                     Hs, Ws, D_student = pred_sem_feats.shape
-                    Ht, Wt, D_clip    = teacher_feats.shape
-
-                    assert Hs == Ht and Ws == Wt, \
-                        f"Student and teacher spatial size mismatch: ({Hs},{Ws}) vs ({Ht},{Wt})"
 
                     # Flatten spatial dims
-                    student_flat = pred_sem_feats.view(-1, D_student)   # [HW, D_student]
-                    teacher_flat = teacher_feats.view(-1, D_clip)       # [HW, D_clip]
+                    student_flat = pred_sem_feats.view(-1, D_student)  # [H*W, D_student]
 
-                    device = pred_semantic_logits.device
-
-                    # Make sure the projection layers are on the same device as the logits
-                    self.teacher_proj  = self.teacher_proj.to(device)  # if you use it here
-
-                    # Project teacher features into student feature space
-                    # self.teacher_proj: nn.Linear(D_clip, D_student)
-                    teacher_proj_flat = self.teacher_proj(teacher_flat) # [HW, D_student]
-
-                    # Optionally restrict to labeled pixels only
+                    # Optionally restrict pooling to labeled pixels
                     if has_labeled:
-                        student_lab = student_flat[idx]                 # [N, D_student]
-                        teacher_lab = teacher_proj_flat[idx]            # [N, D_student]
+                        student_lab = student_flat[idx]              # [N, D_student]
+                        if student_lab.numel() == 0:
+                            # fallback: use all pixels if no labeled ones
+                            student_global = student_flat.mean(dim=0, keepdim=True)  # [1, D_student]
+                        else:
+                            student_global = student_lab.mean(dim=0, keepdim=True)   # [1, D_student]
                     else:
-                        student_lab = student_flat                      # [HW, D_student]
-                        teacher_lab = teacher_proj_flat                 # [HW, D_student]
+                        student_global = student_flat.mean(dim=0, keepdim=True)       # [1, D_student]
+
+                    # Teacher is a single vector [D_clip] for the whole image
+                    teacher_vec = teacher_vec.to(student_global.device)               # [D_clip]
+                    teacher_vec = teacher_vec.view(1, -1)                             # [1, D_clip]
+
+                    # Project teacher to student space: nn.Linear(D_clip, D_student)
+                    self.teacher_proj = self.teacher_proj.to(device)
+                    teacher_proj = self.teacher_proj(teacher_vec)                     # [1, D_student]
 
                     # Normalize for cosine similarity
-                    student_norm = F.normalize(student_lab, p=2, dim=-1)
-                    teacher_norm = F.normalize(teacher_lab, p=2, dim=-1)
+                    student_norm = F.normalize(student_global, p=2, dim=-1)          # [1, D_student]
+                    teacher_norm = F.normalize(teacher_proj,  p=2, dim=-1)           # [1, D_student]
 
-                    cos_sim = (student_norm * teacher_norm).sum(dim=-1)      # [N] or [HW]
-                    # Contrastive-style alignment loss: encourage cos_sim → 1
+                    cos_sim = (student_norm * teacher_norm).sum(dim=-1)              # [1]
                     loss_contrastive = (1.0 - cos_sim).mean()
                 else:
-                    # If you don't have teacher features wired yet, this is a no-op
                     loss_contrastive = pred_semantic_logits.new_tensor(0.0)
 
                 semcont_weight = apply_warmup(semcont_w)
                 sem_losses["semantic_contrastive_loss"] = semcont_weight * loss_contrastive
+
 
 
             # ------------------------------------------------------------------

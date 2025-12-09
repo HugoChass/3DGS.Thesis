@@ -662,18 +662,6 @@ class CameraData(object):
             clip_feature = self.clip_features[frame_idx]
             if self.downscale_factor != 1.0:
                 lidar_semantics_map = downsample_sparse_mode_anyscale(lidar_semantics_map, self.downscale_factor, 19)
-                
-                teacher_nchw = clip_feature.permute(2, 0, 1).unsqueeze(0)
-                if self.downscale_factor != 1.0:
-                    teacher_down = torch.nn.functional.interpolate(
-                        teacher_nchw,
-                        scale_factor=self.downscale_factor,
-                        mode="bilinear",
-                        align_corners=False,
-                    )   # [1, D_clip, H_down, W_down]
-                else:
-                    teacher_down = teacher_nchw  # unchanged
-                clip_feature = teacher_down.squeeze(0).permute(1, 2, 0)
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
