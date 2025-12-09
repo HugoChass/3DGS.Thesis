@@ -825,7 +825,7 @@ class DrivingDataset(SceneDataset):
                                 device=device).view(1, 3, 1, 1)
 
         for cam in self.pixel_source.camera_data.values():
-            clip_features = []  # will store [num_frames, D_clip]
+            clip_features = []  # will store [num_frames, H, W, D_clip]
 
             for frame_idx in tqdm(
                 range(len(cam)),
@@ -836,7 +836,8 @@ class DrivingDataset(SceneDataset):
                 # 1) Get GT image for this camera frame
                 #    Assume cam.images[frame_idx]: [H, W, 3], uint8 or float in [0,1]
                 # ------------------------------------------------------------------
-                img = cam.images[frame_idx].to(device)
+                img = cam.images[frame_idx].to(device)  # [H, W, 3]
+                H, W, _ = img.shape  # original resolution
 
                 # Ensure float in [0, 1]
                 if img.dtype != torch.float32:
@@ -845,18 +846,8 @@ class DrivingDataset(SceneDataset):
                     img = img / 255.0
 
                 # HWC -> NCHW, add batch dim
-                if img.dim() == 3:
-                    # [H, W, 3] -> [1, 3, H, W]
-                    img = img.permute(2, 0, 1).unsqueeze(0)
-                elif img.dim() == 4:
-                    # if somehow already [3, H, W], just add batch dim
-                    if img.shape[0] == 3:
-                        img = img.unsqueeze(0)
-                    else:
-                        # assume already [1, 3, H, W]
-                        pass
-                else:
-                    raise ValueError(f"Unexpected image shape for CLIP: {img.shape}")
+                # [H, W, 3] -> [1, 3, H, W]
+                img = img.permute(2, 0, 1).unsqueeze(0)
 
                 # ------------------------------------------------------------------
                 # 2) Resize & normalize as CLIP expects
@@ -872,17 +863,25 @@ class DrivingDataset(SceneDataset):
                 # 3) Run CLIP to get a global embedding for the image
                 # ------------------------------------------------------------------
                 with torch.no_grad():
-                    # OpenAI-style CLIP: encode_image returns [1, D_clip]
+                    # encode_image returns [1, D_clip]
                     feat = clip_model.encode_image(img_norm)  # [1, D_clip]
                     feat = feat.squeeze(0)                    # [D_clip]
 
-                clip_features.append(feat)
+                D_clip = feat.shape[0]
 
-            # Stack to [num_frames, D_clip]
-            clip_features = torch.stack(clip_features, dim=0).to(device)  # [T, D_clip]
+                # ------------------------------------------------------------------
+                # 4) Broadcast this embedding to a feature map [H, W, D_clip]
+                # ------------------------------------------------------------------
+                # [D_clip] -> [1, 1, D_clip] -> [H, W, D_clip]
+                feat_map = feat.view(1, 1, D_clip).expand(H, W, D_clip)  # [H, W, D_clip]
+
+                clip_features.append(feat_map)
+
+            # Stack to [T, H, W, D_clip]
+            clip_features = torch.stack(clip_features, dim=0).to(device)  # [T, H, W, D_clip]
 
             cam.load_clip_features(clip_features)
-
+        
     def get_novel_render_traj(
         self,
         traj_types: List[str] = ["front_center_interp"],
