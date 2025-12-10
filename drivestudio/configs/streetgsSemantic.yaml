@@ -81,6 +81,20 @@ trainer:
     stop_screen_size_at: 4000     # stop culling/splitting at this step WRT screen size of gaussians
     stop_split_at: 15000          # stop splitting at this step
     sh_degree: 3                  # sh degree for gaussians
+    # enable/disable semantic influence
+    use_semantic_cull: true
+    use_semantic_split: true
+    use_semantic_dup: true
+    # semantic importance construction
+    semantic_inv_freq_eps: 1e-6
+    semantic_normalize_inv_freq: true
+    semantic_conf_power: 1.0           # how strongly confidence affects importance
+    semantic_densification_class_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,]   # optional
+    # thresholds in importance space (~1.0 ≈ "average")
+    semantic_cull_importance_thresh: 1.0
+    semantic_split_importance_thresh: 1.0
+    semantic_dup_importance_thresh: 1.0
+
 
 # ------------- Model ------------ #
 model:

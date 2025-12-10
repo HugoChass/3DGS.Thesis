@@ -20,6 +20,7 @@ import logging
 import torch
 import torch.nn as nn
 from torch.nn import Parameter
+import torch.nn.functional as F
 
 from models.gaussians.basics import *
 
@@ -350,83 +351,184 @@ class VanillaGaussians(nn.Module):
             self.vis_counts = None
             self.max_2Dsize = None
 
+    def _compute_semantic_importance_for_densification(self):
+        """
+        Compute per-Gaussian semantic class, confidence and importance weights.
+
+        Returns:
+            class_ids:   [N]  long   predicted class per Gaussian
+            confidence:  [N]  float  semantic confidence per Gaussian (max prob)
+            importance:  [N]  float  combined importance per Gaussian
+        """
+        if not hasattr(self, "_semantics") or self._semantics is None:
+            return None, None, None
+
+        # self._semantics: [N, K] semantic logits per Gaussian
+        sem_logits = self._semantics.detach()
+        N, K = sem_logits.shape
+
+        # Softmax to get probabilities
+        sem_probs = F.softmax(sem_logits, dim=-1)         # [N, K]
+
+        # Predicted class and confidence
+        confidence, class_ids = sem_probs.max(dim=-1)     # [N], [N]
+
+        # Inverse-frequency class weights from current Gaussian distribution
+        counts = torch.bincount(class_ids, minlength=K).float().to(self.device)  # [K]
+
+        inv_freq_eps = getattr(self.ctrl_cfg, "semantic_inv_freq_eps", 1e-6)
+        normalize_inv_freq = getattr(self.ctrl_cfg, "semantic_normalize_inv_freq", True)
+
+        inv_freq = torch.zeros_like(counts)
+        nonzero = counts > 0
+        inv_freq[nonzero] = 1.0 / (counts[nonzero] + inv_freq_eps)
+
+        if normalize_inv_freq and nonzero.any():
+            mean_w = inv_freq[nonzero].mean()
+            inv_freq[nonzero] = inv_freq[nonzero] / (mean_w + inv_freq_eps)
+
+        # Optional manual per-class weights for densification (e.g. task importance)
+        manual_w = getattr(self.ctrl_cfg, "semantic_densification_class_weights", None)
+        if manual_w is not None:
+            # manual_w should be a list/tuple of length K
+            assert len(manual_w) == K, (
+                f"semantic_densification_class_weights length {len(manual_w)} "
+                f"must match num classes {K}"
+            )
+            manual_w = sem_logits.new_tensor(manual_w, dtype=torch.float32)  # [K]
+            class_weight = inv_freq * manual_w
+        else:
+            class_weight = inv_freq  # just inverse frequency
+
+        # Per-Gaussian class weight
+        per_gauss_class_w = class_weight[class_ids]       # [N]
+
+        # Combine with confidence: importance = class_w * conf^alpha
+        conf_power = getattr(self.ctrl_cfg, "semantic_conf_power", 1.0)
+        importance = per_gauss_class_w * (confidence ** conf_power)  # [N]
+
+        return class_ids, confidence, importance
+
     def cull_gaussians(self):
         """
-        This function deletes gaussians with under a certain opacity threshold
+        This function deletes gaussians with under a certain opacity threshold,
+        optionally modulated by semantic importance.
         """
         n_bef = self.num_points
         # cull transparent ones
         culls = (self.get_opacity.data < self.ctrl_cfg.cull_alpha_thresh).squeeze()
+
         if self.step > self.ctrl_cfg.reset_alpha_interval:
             # cull huge ones
             toobigs = (
-                torch.exp(self._scales).max(dim=-1).values > 
+                torch.exp(self._scales).max(dim=-1).values >
                 self.ctrl_cfg.cull_scale_thresh * self.scene_scale
             ).squeeze()
             culls = culls | toobigs
+
             if self.step < self.ctrl_cfg.stop_screen_size_at:
                 # cull big screen space
                 assert self.max_2Dsize is not None
                 culls = culls | (self.max_2Dsize > self.ctrl_cfg.cull_screen_size).squeeze()
-        self._means = Parameter(self._means[~culls].detach())
-        self._scales = Parameter(self._scales[~culls].detach())
-        self._quats = Parameter(self._quats[~culls].detach())
-        # self.colors_all = Parameter(self.colors_all[~culls].detach())
+
+        # -------------------------------
+        # Semantic-aware culling
+        # -------------------------------
+        if getattr(self.ctrl_cfg, "use_semantic_cull", False) and hasattr(self, "_semantics"):
+            _, _, importance = self._compute_semantic_importance_for_densification()
+
+            if importance is not None:
+                # importance: [N], larger = more important
+                # Protect Gaussians whose importance is above a threshold
+                # e.g. 1.0 means "keep anything at or above average importance"
+                imp_thresh = getattr(self.ctrl_cfg, "semantic_cull_importance_thresh", 1.0)
+
+                keep_mask = importance >= imp_thresh       # [N] important = keep
+                # Do not cull important ones:
+                culls = culls & ~keep_mask                 # only cull if flagged AND not important
+
+        # Apply culling
+        self._means       = Parameter(self._means[~culls].detach())
+        self._scales      = Parameter(self._scales[~culls].detach())
+        self._quats       = Parameter(self._quats[~culls].detach())
         self._features_dc = Parameter(self._features_dc[~culls].detach())
         self._features_rest = Parameter(self._features_rest[~culls].detach())
-        self._opacities = Parameter(self._opacities[~culls].detach())
-        self._semantics = Parameter(self._semantics[~culls].detach()) # NEW
+        self._opacities   = Parameter(self._opacities[~culls].detach())
+        self._semantics   = Parameter(self._semantics[~culls].detach())  # NEW was already here
 
         print(f"     Cull: {n_bef - self.num_points}")
         return culls
 
+
     def split_gaussians(self, split_mask: torch.Tensor, samps: int) -> Tuple:
         """
-        This function splits gaussians that are too large
+        This function splits gaussians that are too large.
+        Optionally, only splits semantically important Gaussians.
         """
+        # --------------------------------
+        # Semantic gating for splitting
+        # --------------------------------
+        if getattr(self.ctrl_cfg, "use_semantic_split", False) and hasattr(self, "_semantics"):
+            _, _, importance = self._compute_semantic_importance_for_densification()
+            if importance is not None:
+                imp_thresh = getattr(self.ctrl_cfg, "semantic_split_importance_thresh", 1.0)
+                important = importance >= imp_thresh   # [N]
+                split_mask = split_mask & important    # only split important Gaussians
 
         n_splits = split_mask.sum().item()
         print(f"    Split: {n_splits}")
-        centered_samples = torch.randn((samps * n_splits, 3), device=self.device)  # Nx3 of axis-aligned scales
+
+        centered_samples = torch.randn((samps * n_splits, 3), device=self.device)  # Nx3
         scaled_samples = (
             self.get_scaling[split_mask].repeat(samps, 1) * centered_samples
-            # torch.exp(self._scales[split_mask].repeat(samps, 1)) * centered_samples
-        )  # how these scales are rotated
+        )
         quats = self.quat_act(self._quats[split_mask])  # normalize them first
-        rots = quat_to_rotmat(quats.repeat(samps, 1))  # how these scales are rotated
+        rots = quat_to_rotmat(quats.repeat(samps, 1))   # how these scales are rotated
         rotated_samples = torch.bmm(rots, scaled_samples[..., None]).squeeze()
         new_means = rotated_samples + self._means[split_mask].repeat(samps, 1)
-        # step 2, sample new colors
-        # new_colors_all = self.colors_all[split_mask].repeat(samps, 1, 1)
-        new_feature_dc = self._features_dc[split_mask].repeat(samps, 1)
+
+        new_feature_dc   = self._features_dc[split_mask].repeat(samps, 1)
         new_feature_rest = self._features_rest[split_mask].repeat(samps, 1, 1)
-        # step 3, sample new opacities
-        new_opacities = self._opacities[split_mask].repeat(samps, 1)
-        # step 4, sample new scales
-        size_fac = 1.6
+        new_opacities    = self._opacities[split_mask].repeat(samps, 1)
+
+        size_fac  = 1.6
         new_scales = torch.log(torch.exp(self._scales[split_mask]) / size_fac).repeat(samps, 1)
         self._scales[split_mask] = torch.log(torch.exp(self._scales[split_mask]) / size_fac)
-        # step 5, sample new quats
+
         new_quats = self._quats[split_mask].repeat(samps, 1)
 
-        new_semantics = self._semantics[split_mask].repeat(samps, 1) # NEW + RETURN
+        new_semantics = self._semantics[split_mask].repeat(samps, 1)  # NEW + RETURN
         return new_means, new_feature_dc, new_feature_rest, new_opacities, new_scales, new_quats, new_semantics
+
 
     def dup_gaussians(self, dup_mask: torch.Tensor) -> Tuple:
         """
-        This function duplicates gaussians that are too small
+        This function duplicates gaussians that are too small.
+        Optionally, only duplicates semantically important Gaussians.
         """
+        # --------------------------------
+        # Semantic gating for duplication
+        # --------------------------------
+        if getattr(self.ctrl_cfg, "use_semantic_dup", False) and hasattr(self, "_semantics"):
+            _, _, importance = self._compute_semantic_importance_for_densification()
+            if importance is not None:
+                imp_thresh = getattr(self.ctrl_cfg, "semantic_dup_importance_thresh", 1.0)
+                important = importance >= imp_thresh
+                dup_mask = dup_mask & important
+
         n_dups = dup_mask.sum().item()
         print(f"      Dup: {n_dups}")
-        dup_means = self._means[dup_mask]
-        # dup_colors = self.colors_all[dup_mask]
-        dup_feature_dc = self._features_dc[dup_mask]
+
+        dup_means        = self._means[dup_mask]
+        dup_feature_dc   = self._features_dc[dup_mask]
         dup_feature_rest = self._features_rest[dup_mask]
-        dup_opacities = self._opacities[dup_mask]
-        dup_scales = self._scales[dup_mask]
-        dup_quats = self._quats[dup_mask]
-        dup_semantics = self._semantics[dup_mask] # NEW + RETURN
+        dup_opacities    = self._opacities[dup_mask]
+        dup_scales       = self._scales[dup_mask]
+        dup_quats        = self._quats[dup_mask]
+        dup_semantics    = self._semantics[dup_mask]  # NEW + RETURN
+
         return dup_means, dup_feature_dc, dup_feature_rest, dup_opacities, dup_scales, dup_quats, dup_semantics
+
 
     def get_gaussians(self, cam: dataclass_camera) -> Dict:
         filter_mask = torch.ones_like(self._means[:, 0], dtype=torch.bool)
