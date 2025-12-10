@@ -435,6 +435,7 @@ class VanillaGaussians(nn.Module):
         # Semantic-aware culling (safe)
         # -------------------------------
         if getattr(self.ctrl_cfg, "use_semantic_cull", False) and hasattr(self, "_semantics"):
+            print("semantic culling")
             class_ids, confidence, importance = self._compute_semantic_importance_for_densification()
 
             if importance is not None:
