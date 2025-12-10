@@ -277,6 +277,14 @@ class VanillaGaussians(nn.Module):
                     splits |= (self.max_2Dsize > self.ctrl_cfg.split_screen_size).squeeze()
                 splits &= high_grads
                 nsamps = self.ctrl_cfg.n_split_samples
+
+                if getattr(self.ctrl_cfg, "use_semantic_split", False) and hasattr(self, "_semantics"):
+                    _, _, importance = self._compute_semantic_importance_for_densification()
+                    if importance is not None and importance.shape[0] == splits.shape[0]:
+                        imp_thresh = getattr(self.ctrl_cfg, "semantic_split_importance_thresh", 1.0)
+                        important = importance >= imp_thresh
+                        splits = splits & important
+
                 (
                     split_means,
                     split_feature_dc,
@@ -292,6 +300,14 @@ class VanillaGaussians(nn.Module):
                         self.ctrl_cfg.densify_size_thresh * self.scene_scale
                 ).squeeze()
                 dups &= high_grads
+
+                if getattr(self.ctrl_cfg, "use_semantic_dup", False) and hasattr(self, "_semantics"):
+                    _, _, importance = self._compute_semantic_importance_for_densification()
+                    if importance is not None and importance.shape[0] == dups.shape[0]:
+                        imp_thresh = getattr(self.ctrl_cfg, "semantic_split_importance_thresh", 1.0)
+                        important = importance >= imp_thresh
+                        dups = dups & important
+
                 (
                     dup_means,
                     dup_feature_dc,
@@ -456,11 +472,6 @@ class VanillaGaussians(nn.Module):
                         f"!= culls len {N_culls}"
                     )
 
-        print("means:", self._means.shape[0],
-            "opac:", self._opacities.shape[0],
-            "sem:", self._semantics.shape[0],
-            "mask:", culls.shape[0])
-
         # Apply culling
         self._means       = Parameter(self._means[~culls].detach())
         self._scales      = Parameter(self._scales[~culls].detach())
@@ -469,11 +480,6 @@ class VanillaGaussians(nn.Module):
         self._features_rest = Parameter(self._features_rest[~culls].detach())
         self._opacities   = Parameter(self._opacities[~culls].detach())
         self._semantics   = Parameter(self._semantics[~culls].detach())
-
-        print("means:", self._means.shape[0],
-            "opac:", self._opacities.shape[0],
-            "sem:", self._semantics.shape[0],
-            "mask:", culls.shape[0])
 
         print(f"     Cull: {n_bef - self.num_points}")
         return culls
@@ -485,23 +491,6 @@ class VanillaGaussians(nn.Module):
         This function splits gaussians that are too large.
         Optionally, only splits semantically important Gaussians.
         """
-        # --------------------------------
-        # Semantic gating for splitting
-        # --------------------------------
-        if getattr(self.ctrl_cfg, "use_semantic_split", False) and hasattr(self, "_semantics"):
-            class_ids, confidence, importance = self._compute_semantic_importance_for_densification()
-            if importance is not None:
-                N_split = split_mask.shape[0]
-                N_imp   = importance.shape[0]
-                if N_split == N_imp:
-                    imp_thresh = getattr(self.ctrl_cfg, "semantic_split_importance_thresh", 1.0)
-                    important = importance >= imp_thresh          # [N]
-                    split_mask = split_mask & important
-                else:
-                    print(
-                        f"[WARN] semantic split skipped: importance len {N_imp} "
-                        f"!= mask len {N_split}"
-                    )
 
         n_splits = split_mask.sum().item()
         print(f"    Split: {n_splits}")
@@ -534,23 +523,6 @@ class VanillaGaussians(nn.Module):
         This function duplicates gaussians that are too small.
         Optionally, only duplicates semantically important Gaussians.
         """
-        # --------------------------------
-        # Semantic gating for duplication
-        # --------------------------------
-        if getattr(self.ctrl_cfg, "use_semantic_dup", False) and hasattr(self, "_semantics"):
-            class_ids, confidence, importance = self._compute_semantic_importance_for_densification()
-            if importance is not None:
-                N_dup = dup_mask.shape[0]
-                N_imp = importance.shape[0]
-                if N_dup == N_imp:
-                    imp_thresh = getattr(self.ctrl_cfg, "semantic_dup_importance_thresh", 1.0)
-                    important = importance >= imp_thresh
-                    dup_mask = dup_mask & important
-                else:
-                    print(
-                        f"[WARN] semantic dup skipped: importance len {N_imp} "
-                        f"!= mask len {N_dup}"
-                    )
 
         n_dups = dup_mask.sum().item()
         print(f"      Dup: {n_dups}")
