@@ -141,7 +141,7 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # build dataset
-    dataset = DrivingDataset(data_cfg=cfg.data)
+    dataset = DrivingDataset(data_cfg=cfg.data, clip_cfg=cfg.trainer.losses.semantics.use_contrastive)
     # setup trainer
     trainer = import_str(cfg.trainer.type)(
         **cfg.trainer,

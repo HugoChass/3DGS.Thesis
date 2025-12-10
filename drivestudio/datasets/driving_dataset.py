@@ -37,6 +37,7 @@ class DrivingDataset(SceneDataset):
     def __init__(
         self,
         data_cfg: OmegaConf,
+        clip_cfg=False,
     ) -> None:
         super().__init__(data_cfg)
         
@@ -89,7 +90,8 @@ class DrivingDataset(SceneDataset):
             pretrained="laion2b_s34b_b79k",
             device=self.device
         )
-        self.compute_clip_teacher_features(clip_model)
+        if clip_cfg:
+            self.compute_clip_teacher_features(clip_model)
 
         self.aabb = self.get_aabb()
 
