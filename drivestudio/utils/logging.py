@@ -6,7 +6,7 @@ import json
 import logging
 import datetime
 import functools
-import numbers
+
 from typing import Optional
 from collections import defaultdict, deque
 
@@ -21,24 +21,13 @@ class MetricLogger(object):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
         self.output_file = output_file
-        self.lists = defaultdict(list)
-
-    def _to_float(self, x):
-        if isinstance(x, torch.Tensor):
-            x = x.detach()
-            if x.numel() != 1:
-                raise ValueError(f"Expected scalar tensor, got shape {tuple(x.shape)}")
-            return float(x.item())
-        if isinstance(x, numbers.Number):
-            return float(x)
-        raise TypeError(f"Expected number or scalar tensor, got {type(x).__name__}")
 
     def update(self, **kwargs):
         for k, v in kwargs.items():
-            if isinstance(v, (list, tuple)):
-                self.lists[k].append([self._to_float(x) for x in v])  # store list as-is
-            else:
-                self.meters[k].update(self._to_float(v))
+            if isinstance(v, torch.Tensor):
+                v = v.item()
+            assert isinstance(v, (float, int))
+            self.meters[k].update(v)
 
     def __getattr__(self, attr):
         if attr in self.meters:
@@ -65,11 +54,15 @@ class MetricLogger(object):
     def dump_in_output_file(self, iteration, iter_time, data_time):
         if self.output_file is None:
             return
-        dict_to_dump = dict(iteration=iteration, iter_time=iter_time, data_time=data_time)
+        dict_to_dump = dict(
+            iteration=iteration,
+            iter_time=iter_time,
+            data_time=data_time,
+        )
         dict_to_dump.update({k: v.median for k, v in self.meters.items()})
-        dict_to_dump.update({k: self.lists[k][-1] for k in self.lists})  # last list this iter
         with open(self.output_file, "a") as f:
             f.write(json.dumps(dict_to_dump) + "\n")
+        pass
 
     def log_every(
         self, iterable, print_freq, header=None, n_iterations=None, start_iteration=0
