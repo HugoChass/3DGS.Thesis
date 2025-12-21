@@ -6,7 +6,7 @@ import json
 import wandb
 import logging
 import argparse
-
+import numpy as np
 import torch
 from datasets.driving_dataset import DrivingDataset
 from utils.misc import import_str
@@ -121,7 +121,7 @@ def do_evaluation(
                     "per_class_recall",
                     "per_class_f1",
                 ]:
-                    eval_dict[f"image_metrics/full/{k}"] = v
+                    eval_dict[f"image_metrics/full/{k}"] = make_json_serializable(v)
             if args.enable_wandb:
                 wandb.log(eval_dict)
             full_metrics_file = f"{cfg.log_dir}/metrics{post_fix}/images_full_{current_time}.json"
@@ -174,7 +174,16 @@ def do_evaluation(
                 fps=render_novel_cfg.get("fps", cfg.render.fps)
             )
             logger.info(f"Saved novel view video for trajectory type: {traj_type} to {save_path}")
-            
+
+def make_json_serializable(v):
+    if isinstance(v, np.ndarray):
+        return v.tolist()
+    if isinstance(v, (np.float32, np.float64)):
+        return float(v)
+    if isinstance(v, (np.int32, np.int64)):
+        return int(v)
+    return v
+
 def main(args):
     log_dir = os.path.dirname(args.resume_from)
     cfg = OmegaConf.load(os.path.join(log_dir, "config.yaml"))
