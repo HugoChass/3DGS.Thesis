@@ -387,7 +387,7 @@ def main(args):
                 outputs=outputs,
                 image_infos=image_infos,
             )
-        metric_logger.update(**{"train_metrics/"+k: v.item() for k, v in image_metric_dict.items()})
+        metric_logger.update(**{"train_metrics/"+k: v for k, v in image_metric_dict.items()})
         metric_logger.update(**{"train_stats/gaussian_num_" + k: v for k, v in trainer.get_gaussian_count().items()})
         metric_logger.update(**{"losses/"+k: v.item() for k, v in loss_dict.items()})
         metric_logger.update(**{"train_stats/lr_" + group['name']: group['lr'] for group in trainer.optimizer.param_groups})
