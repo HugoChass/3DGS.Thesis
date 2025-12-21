@@ -168,7 +168,7 @@ def do_evaluation(
             render_data = dataset.prepare_novel_view_render_data(traj)
             
             # Render and save video
-            save_path = os.path.join(video_output_dir, f"{traj_type}.mp4")
+            save_path = os.path.join(video_output_dir, f"{traj_type}")
             render_novel_views(
                 trainer, render_data, save_path,
                 fps=render_novel_cfg.get("fps", cfg.render.fps)

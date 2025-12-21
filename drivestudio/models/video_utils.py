@@ -496,9 +496,9 @@ def render_novel_views(trainer, render_data: list, save_path: str, fps: int = 30
     """
     trainer.set_eval()  
     
-    writer = imageio.get_writer(save_path, mode='I', fps=fps)
-    writer2 = imageio.get_writer(save_path + "semantic_map", mode='I', fps=fps)
-    writer3 = imageio.get_writer(save_path + "gt_semantic", mode='I', fps=fps)
+    writer = imageio.get_writer(save_path + "_rgb.mp4", mode='I', fps=fps)
+    writer2 = imageio.get_writer(save_path + "_semantic_map.mp4", mode='I', fps=fps)
+    writer3 = imageio.get_writer(save_path + "_gt_semantic.mp4", mode='I', fps=fps)
     
     with torch.no_grad():
         for frame_data in render_data:
