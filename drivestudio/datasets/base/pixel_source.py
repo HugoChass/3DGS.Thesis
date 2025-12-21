@@ -664,6 +664,8 @@ class CameraData(object):
 
         if self.clip_features is not None:
             clip_feature = self.clip_features[frame_idx]
+        else:
+            clip_feature = None
 
         if self.normalized_time is not None:
             normalized_time = torch.full(
