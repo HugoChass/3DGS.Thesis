@@ -246,6 +246,16 @@ def main(args):
                         for i in range(dataset.pixel_source.num_cams)
                     ],
                 )
+            image_metric_dict = {'psnr':render_results['psnr'],
+                                 'ssim':render_results['ssim'],
+                                 'lpips':render_results['lpips'],
+                                 'miou':render_results['miou'],
+                                 'per_class_iou':render_results['per_class_iou'],
+                                 'per_class_precision':render_results['per_class_precision'],
+                                 'per_class_recall':render_results['per_class_recall'],
+                                 'per_class_f1':render_results['per_class_f1'],
+                                 }
+
             if args.enable_wandb:
                 wandb.log(
                     {
@@ -377,7 +387,7 @@ def main(args):
                 outputs=outputs,
                 image_infos=image_infos,
             )
-        metric_logger.update(**{"train_metrics/"+k: v.item() for k, v in metric_dict.items()})
+        metric_logger.update(**{"train_metrics/"+k: v.item() for k, v in image_metric_dict.items()})
         metric_logger.update(**{"train_stats/gaussian_num_" + k: v for k, v in trainer.get_gaussian_count().items()})
         metric_logger.update(**{"losses/"+k: v.item() for k, v in loss_dict.items()})
         metric_logger.update(**{"train_stats/lr_" + group['name']: group['lr'] for group in trainer.optimizer.param_groups})

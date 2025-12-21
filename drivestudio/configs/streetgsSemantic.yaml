@@ -16,6 +16,7 @@ trainer:
     absgrad: true # whether to use absolute gradient for rendering, supported by gsplat kernel
     sparse_grad: false # whether to use sparse gradient for rendering, supported by gsplat kernel
     batch_size: 1 # batch size for rendering, currently only support 1
+    nbr_pass: 1 # 1 or 2 pass combine/seperate rgb semantic render
   losses:
     rgb:
       w: 0.8
@@ -32,10 +33,12 @@ trainer:
     affine:
       w: 0.00001 # weight of affine regularization
     semantics:
+      warmup_start: 5000
+      full_weight_step: 15000
       use_ce: True
-      use_focal: True
-      use_contrastive: True
-      use_reg: True
+      use_focal: False
+      use_contrastive: False
+      use_reg: False
       loss_ce_w: 0.1
       loss_focal_w: 0.1
       loss_contrastive_w: 0.1
@@ -82,9 +85,9 @@ trainer:
     stop_split_at: 15000          # stop splitting at this step
     sh_degree: 3                  # sh degree for gaussians
     # enable/disable semantic influence
-    use_semantic_cull: True
-    use_semantic_split: True
-    use_semantic_dup: True
+    use_semantic_cull: False
+    use_semantic_split: False
+    use_semantic_dup: False
     # semantic importance construction
     semantic_inv_freq_eps: 1e-6
     semantic_normalize_inv_freq: True
@@ -167,6 +170,10 @@ render:
   fps: 10 # frames per second for the main rendered output
   render_full: True # whether to render full resolution videos
   render_test: True # whether to render test set
+  render_novel: 
+    traj_types:
+      - front_center_interp # type of trajectory for novel view synthesis
+    fps: 24 # frames per second for novel view rendering
   vis_lidar: False # whether to visualize lidar points on ground truth images
   vis_sky: False # whether to include "rgb_sky" and "rgb_sky_blend" in rendered keys
   vis_error: False # whether to include "rgb_error_map" in rendered keys

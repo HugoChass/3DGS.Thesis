@@ -544,6 +544,18 @@ class BasicTrainer(nn.Module):
         return results, render_fn
 
     def render_gaussians(self, gs: dataclass_gs, cam: dataclass_camera, **kwargs):
+        n = getattr(self.render_cfg, "nbr_pass", 1)
+
+        if n == 1:
+            return self.render_gaussians_one_pass(gs, cam, **kwargs)
+        elif n == 2:
+            return self.render_gaussians_two_pass(gs, cam, **kwargs)
+        else:
+            raise ValueError(
+                f"render_cfg.nbr_pass must be 1 or 2, got {n}"
+            )
+
+    def render_gaussians_one_pass(self, gs: dataclass_gs, cam: dataclass_camera, **kwargs):
 
         device, dtype = gs.rgbs.device, gs.rgbs.dtype
         palette = get_semantic_palette(device=device, dtype=dtype)  # [C+1,3] incl. bg
@@ -667,6 +679,166 @@ class BasicTrainer(nn.Module):
             self.info["means2d"].retain_grad()
 
         return results, render_fn
+
+    def render_gaussians_two_pass(self, gs: dataclass_gs, cam: dataclass_camera, **kwargs):
+
+        device, dtype = gs.rgbs.device, gs.rgbs.dtype
+        palette = get_semantic_palette(device=device, dtype=dtype)  # [C+1,3] incl. bg
+
+        # Get semantic size
+        assert hasattr(gs, "semantics"), "gs.semantics must exist"
+        C = gs.semantics.shape[-1]  # num semantic classes (no bg)
+
+        def render_fn(opacity_mask=None, return_info=False):
+            opacities = gs.opacities.squeeze()
+            if opacity_mask is not None:
+                opacities = opacities * opacity_mask
+
+            # -------------------------
+            # Pass 1: RGB (+ depth)
+            # -------------------------
+            renders_rgb, alphas_rgb, info_rgb = rasterization(
+                means=gs.means,
+                quats=gs.quats,
+                scales=gs.scales,
+                opacities=opacities,
+                colors=gs.rgbs,  # [N, 3]
+                viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],
+                Ks=cam.Ks[None, ...],
+                width=cam.W,
+                height=cam.H,
+                packed=self.render_cfg.packed,
+                absgrad=self.render_cfg.absgrad,
+                sparse_grad=self.render_cfg.sparse_grad,
+                rasterize_mode="antialiased" if self.render_cfg.antialiased else "classic",
+                **kwargs,
+            )
+
+            img_rgb   = renders_rgb[0]              # [H, W, 3+1] (RGB + depth)
+            alpha_rgb = alphas_rgb[0].squeeze(-1)   # [H, W]
+
+            rgb   = img_rgb[..., :3]
+            depth = img_rgb[..., 3:4]               # [H, W, 1]
+
+            rgb = torch.clamp(rgb, max=1.0)
+
+            # -------------------------
+            # Pass 2: Semantics (+ depth)
+            # -------------------------
+            # Render semantic logits as "colors" (features). Keep dtype aligned.
+            sem_colors = gs.semantics.to(dtype)     # [N, C]
+
+            renders_sem, alphas_sem, info_sem = rasterization(
+                means=gs.means,
+                quats=gs.quats,
+                scales=gs.scales,
+                opacities=opacities,
+                colors=sem_colors,  # [N, C]
+                viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],
+                Ks=cam.Ks[None, ...],
+                width=cam.W,
+                height=cam.H,
+                packed=self.render_cfg.packed,
+                absgrad=self.render_cfg.absgrad,
+                sparse_grad=self.render_cfg.sparse_grad,
+                rasterize_mode="antialiased" if self.render_cfg.antialiased else "classic",
+                **kwargs,
+            )
+
+            img_sem   = renders_sem[0]              # [H, W, C+1] (sem_logits + depth)
+            alpha_sem = alphas_sem[0].squeeze(-1)   # [H, W]
+
+            sem_logits = img_sem[..., :C]           # [H, W, C]
+            # sem_depth  = img_sem[..., C:C+1]      # [H, W, 1]  (optional, usually not needed)
+
+            # For background prob, prefer RGB alpha (ties bg mass to the appearance compositing)
+            opacity = alpha_rgb[..., None]          # [H, W, 1]
+
+            if not return_info:
+                return rgb, depth, opacity, sem_logits
+            else:
+                # Return both infos if you want to debug later; keep RGB as primary for training
+                return rgb, depth, opacity, sem_logits, {"rgb": info_rgb, "sem": info_sem}
+
+        # main call
+        rgb, depth, opacity, sem_logits, info_dict = render_fn(return_info=True)
+        # Keep self.info compatible with your existing code (expects "means2d" etc.)
+        # Use RGB info as the primary (so gradients/retains behave as before).
+        self.info = info_dict["rgb"]
+
+        results = {
+            "rgb_gaussians": rgb,
+            "depth": depth,
+            "opacity": opacity,
+        }
+
+        # ---- semantic post-processing ----
+        # sem_logits: [H, W, C] (no bg)
+        if sem_logits is not None:
+            # foreground probs from logits
+            fg_probs = sem_logits.float().softmax(-1)  # [H,W,C]
+
+            # background mass ~ 1 - accumulated alpha (from RGB pass)
+            alpha_total = opacity.squeeze(-1)          # [H,W]
+            bg_prob = (1.0 - alpha_total).clamp_min(0.0)[..., None]  # [H,W,1]
+
+            # combine foreground + background probs, normalize
+            sem_all = torch.cat([fg_probs, bg_prob], dim=-1)  # [H,W,C+1]
+            sem_all = sem_all / (sem_all.sum(dim=-1, keepdim=True) + 1e-6)
+
+            # class indices including bg
+            sem_labels = sem_all.argmax(-1, keepdim=True).to(torch.int32)  # [H,W,1]
+
+            results["semantic_logits"] = sem_logits          # blended logits (no bg)
+            results["semantic_probs"]  = sem_all             # probs (C+1 incl. bg)
+            results["semantic_label"]  = sem_labels          # [H,W,1]
+
+            # pred_semantic_logits: [H, W, K]
+            H, W, K = sem_logits.shape
+            assert K == self.num_semantic_classes, "Logit dim must match num_semantic_classes"
+            device = sem_logits.device
+
+            # Make sure the projection layers are on the same device as the logits
+            self.semantic_proj = self.semantic_proj.to(device)
+
+            # Flatten spatial dims so we can apply Linear(K → D)
+            logits_flat = sem_logits.view(-1, K)  # [H*W, K]
+
+            # Project to D-dim semantic feature space (student features)
+            feat_flat = self.semantic_proj(logits_flat)  # [H*W, D]
+
+            # Reshape back to image grid
+            pred_semantic_features = feat_flat.view(H, W, self.semantic_feat_dim)  # [H, W, D]
+            results["semantic_features"] = pred_semantic_features
+
+            # ---- Palette visualization (with bg color = last palette entry) ----
+            if palette is not None:
+                assert palette.shape[0] == sem_all.shape[-1], \
+                    f"palette rows {palette.shape[0]} must match C+1={sem_all.shape[-1]}"
+                pal = palette.to(device=rgb.device, dtype=rgb.dtype)  # [C+1,3]
+
+                idx_vis = sem_all.detach().argmax(dim=-1)   # [H,W]
+                sem_vis = pal[idx_vis]                      # [H,W,3]
+                results["semantic_rgb"] = sem_vis
+
+                # ---- Visualization without 'unknown' labels ----
+                # assume 'unknown' is second-to-last index, map it to background
+                num_cls_plus_bg = sem_all.shape[-1]
+                unknown_idx = num_cls_plus_bg - 2   # second-to-last
+                bg_idx      = num_cls_plus_bg - 1   # last (background)
+
+                idx_no_unknown = idx_vis.clone()
+                idx_no_unknown[idx_no_unknown == unknown_idx] = bg_idx
+
+                sem_vis_no_unl = pal[idx_no_unknown]        # [H,W,3]
+                results["semantic_rgb_no_unlabelled"] = sem_vis_no_unl
+
+        if self.training:
+            # Keep behavior same as before (info from RGB pass)
+            self.info["means2d"].retain_grad()
+
+        return results, render_fn
+
 
     def affine_transformation(
         self,

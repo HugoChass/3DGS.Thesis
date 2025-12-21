@@ -912,17 +912,73 @@ class DrivingDataset(SceneDataset):
         
         return novel_trajs
 
+    def project_lidar_pts_on_novel(self, render_data: dict):
+        new_render_data = []
+        for frame_data in render_data:
+            cam_infos = frame_data['cam_infos']
+            image_infos = frame_data['image_infos']
+
+            frame_idx = image_infos["frame_idx"]
+            normed_time = image_infos["normed_time"][frame_idx]
+
+            # get lidar depth on image plane
+            closest_lidar_idx = self.lidar_source.find_closest_timestep(normed_time)
+            lidar_infos = self.lidar_source.get_lidar_rays(closest_lidar_idx)
+            lidar_points = (
+                lidar_infos["lidar_origins"]
+                + lidar_infos["lidar_viewdirs"] * lidar_infos["lidar_ranges"]
+            )
+
+            intrinsic_4x4 = torch.nn.functional.pad(
+            cam_infos["intrinsics"][frame_idx], (0, 1, 0, 1)
+            )
+            intrinsic_4x4[3, 3] = 1.0
+            lidar2img = intrinsic_4x4 @ cam_infos["camera_to_world"][frame_idx].inverse()
+            lidar_points = (
+                lidar2img[:3, :3] @ lidar_points.T + lidar2img[:3, 3:4]
+            ).T # (num_pts, 3)
+
+            depth = lidar_points[:, 2]
+            cam_points = lidar_points[:, :2] / (depth.unsqueeze(-1) + 1e-6) # (num_pts, 2)
+            valid_mask = (
+                (cam_points[:, 0] >= 0)
+                & (cam_points[:, 0] < cam_infos["width"])
+                & (cam_points[:, 1] >= 0)
+                & (cam_points[:, 1] < cam_infos["height"])
+                & (depth > 0)
+            ) # (num_pts, )
+            depth = depth[valid_mask]
+            _cam_points = cam_points[valid_mask]
+            depth_map = torch.zeros(
+                cam_infos["height"], cam_infos["width"]
+            ).to(self.device)
+            depth_map[
+                _cam_points[:, 1].long(), _cam_points[:, 0].long()
+            ] = depth.squeeze(-1)
+
+            semantics = lidar_infos["lidar_semantics"][valid_mask].to(device=self.device, dtype=torch.int8)
+            semantic_map = torch.full((cam_infos["height"], cam_infos["width"]), fill_value=18, device=self.device, dtype=torch.int8)
+            semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
+            semantic_map = self.gaussian_semantic_thicken(semantic_map, 19, 18)
+            image_infos["lidar_semantic_map"] = semantic_map
+            new_render_data.append({
+                "cam_infos": cam_infos,
+                "image_infos": image_infos,
+            })
+        return new_render_data
+
     def prepare_novel_view_render_data(self, traj: torch.Tensor) -> list:
-            """
-            Prepare all necessary elements for novel view rendering.
+        """
+        Prepare all necessary elements for novel view rendering.
 
-            Args:
-                traj (torch.Tensor): Novel view trajectory, shape (N, 4, 4)
+        Args:
+            traj (torch.Tensor): Novel view trajectory, shape (N, 4, 4)
 
-            Returns:
-                list: List of dicts, each containing elements required for rendering a single frame:
-                    - cam_infos: Camera information (extrinsics, intrinsics, image dimensions)
-                    - image_infos: Image-related information (indices, normalized time, viewdirs, etc.)
-            """
-            # Call the PixelSource's method
-            return self.pixel_source.prepare_novel_view_render_data(self.type, traj)
+        Returns:
+            list: List of dicts, each containing elements required for rendering a single frame:
+                - cam_infos: Camera information (extrinsics, intrinsics, image dimensions)
+                - image_infos: Image-related information (indices, normalized time, viewdirs, etc.)
+        """
+        # Call the PixelSource's method
+        render_data = self.pixel_source.prepare_novel_view_render_data(self.type, traj)
+        return self.project_lidar_pts_on_novel(render_data)
