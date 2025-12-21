@@ -919,7 +919,7 @@ class DrivingDataset(SceneDataset):
             image_infos = frame_data['image_infos']
 
             frame_idx = image_infos["frame_idx"]
-            normed_time = image_infos["normed_time"][frame_idx]
+            normed_time = image_infos["normed_time"]
 
             # get lidar depth on image plane
             closest_lidar_idx = self.lidar_source.find_closest_timestep(normed_time)
