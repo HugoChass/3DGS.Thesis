@@ -213,8 +213,6 @@ class SceneLidarSource(abc.ABC):
         Returns:
             the closest timestep to the given timestamp.
         """
-        print(self._normalized_time.shape, self._normalized_time)
-        print(normed_timestamp.shape, normed_timestamp)
         return torch.argmin(
             torch.abs(self.unique_normalized_timestamps - normed_timestamp)
         )
