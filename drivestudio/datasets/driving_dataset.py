@@ -960,7 +960,7 @@ class DrivingDataset(SceneDataset):
             semantic_map = torch.full((cam_infos["height"], cam_infos["width"]), fill_value=18, device=self.device, dtype=torch.int8)
             semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
             semantic_map = self.gaussian_semantic_thicken(semantic_map, 19, 18)
-            image_infos["lidar_semantic_map"] = semantic_map
+            image_infos["lidar_semantics_map"] = semantic_map
             new_render_data.append({
                 "cam_infos": cam_infos,
                 "image_infos": image_infos,
