@@ -930,10 +930,10 @@ class DrivingDataset(SceneDataset):
             )
 
             intrinsic_4x4 = torch.nn.functional.pad(
-            cam_infos["intrinsics"][frame_idx], (0, 1, 0, 1)
+            cam_infos["intrinsics"], (0, 1, 0, 1)
             )
             intrinsic_4x4[3, 3] = 1.0
-            lidar2img = intrinsic_4x4 @ cam_infos["camera_to_world"][frame_idx].inverse()
+            lidar2img = intrinsic_4x4 @ cam_infos["camera_to_world"].inverse()
             lidar_points = (
                 lidar2img[:3, :3] @ lidar_points.T + lidar2img[:3, 3:4]
             ).T # (num_pts, 3)
