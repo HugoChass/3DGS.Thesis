@@ -449,7 +449,7 @@ def main(args):
         cfg=cfg,
         trainer=trainer,
         dataset=dataset,
-        render_keys=render_keys,
+        render_keys=render_keys + ["gt_semantic_map"],
         args=args,
     )
     
