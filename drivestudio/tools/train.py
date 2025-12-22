@@ -438,6 +438,16 @@ def main(args):
                     fps=cfg.render.fps,
                 )
             logger.info("Done caching rgb error maps")
+        
+        do_evaluation(
+            step=step,
+            cfg=cfg,
+            trainer=trainer,
+            dataset=dataset,
+            render_keys=render_keys,
+            args=args,
+        )
+        exit(1)
             
     with open(semantic_log_file, "w", encoding="utf-8") as f:
         json.dump(semantic_log, f, indent=2, ensure_ascii=False)
