@@ -713,7 +713,7 @@ class NuScenesProcessor(object):
         xyz_w = self.transform_points(pc.points[:3, :].T, T_lw)
 
         # 1-NN with radius cap
-        dists, idxs = tree.query(xyz_w, k=1, workers=-1)
+        dists, idxs = tree.query(xyz_w, k=5, workers=-1)
         prop_labels = np.full(xyz_w.shape[0], -1, dtype=np.uint8)  # -1 = unknown
         mask = dists <= r_max
         prop_labels[mask] = all_lbl[idxs[mask]]
