@@ -4,6 +4,7 @@ import numpy as np
 import os
 import logging
 import imageio
+import json
 
 import torch
 from torch import Tensor
@@ -499,7 +500,7 @@ def render_novel_views(trainer, render_data: list, save_path: str, fps: int = 30
     writer = imageio.get_writer(save_path + "_rgb.mp4", mode='I', fps=fps)
     writer2 = imageio.get_writer(save_path + "_semantic_map.mp4", mode='I', fps=fps)
     writer3 = imageio.get_writer(save_path + "_gt_semantic.mp4", mode='I', fps=fps)
-    
+    results = {}
     with torch.no_grad():
         for frame_data in render_data:
             # Move data to GPU
@@ -526,8 +527,8 @@ def render_novel_views(trainer, render_data: list, save_path: str, fps: int = 30
                     num_classes=NUM_SEM_CLASSES,
                     ignore_label=IGNORE_LABEL,
                     )
-            print("novel view metrics")
-            print(sem_metrics)
+            
+            results[frame_data["cam_infos"]["img_idx"]] = sem_metrics
 
             sem_rgb = outputs["semantic_rgb"].cpu().numpy().clip(
                 min=1.e-6, max=1-1.e-6
@@ -549,6 +550,9 @@ def render_novel_views(trainer, render_data: list, save_path: str, fps: int = 30
             writer.append_data(rgb_uint8)
             writer2.append_data(sem_rgb_unit8)
             writer3.append_data(gt_sem_rgb_unit8)
+        
+        with open(save_path + "_metrics.json", "w") as f:
+            json.dump(results, f, indent=4)
     
     writer.close()
     print(f"Video saved to {save_path}")
