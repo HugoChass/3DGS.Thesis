@@ -712,11 +712,22 @@ class NuScenesProcessor(object):
 
         xyz_w = self.transform_points(pc.points[:3, :].T, T_lw)
 
-        # 1-NN with radius cap
-        dists, idxs = tree.query(xyz_w, k=3, workers=-1)
-        prop_labels = np.full(xyz_w.shape[0], -1, dtype=np.uint8)  # -1 = unknown
-        mask = dists <= r_max
-        prop_labels[mask] = all_lbl[idxs[mask]]
+        k = 5
+        dists, idxs = tree.query(xyz_w, k=k, workers=-1)
+
+        valid = dists <= r_max
+        neighbor_labels = all_lbl[idxs]              # (N,k)
+
+        prop_labels = np.full(xyz_w.shape[0], 255, dtype=np.uint8)
+
+        for i in range(xyz_w.shape[0]):
+            labs = neighbor_labels[i][valid[i]]
+            if labs.size == 0:
+                continue
+            # majority vote
+            counts = np.bincount(labs.astype(np.int64), minlength=256)
+            prop_labels[i] = counts.argmax().astype(np.uint8)
+
         return prop_labels
     # ---
 
