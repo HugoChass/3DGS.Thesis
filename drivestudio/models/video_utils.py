@@ -528,7 +528,7 @@ def render_novel_views(trainer, render_data: list, save_path: str, fps: int = 30
                     ignore_label=IGNORE_LABEL,
                     )
             
-            results[frame_data["cam_infos"]["img_idx"]] = sem_metrics
+            results[frame_data["image_infos"]["img_idx"][0,0]] = sem_metrics
 
             sem_rgb = outputs["semantic_rgb"].cpu().numpy().clip(
                 min=1.e-6, max=1-1.e-6
