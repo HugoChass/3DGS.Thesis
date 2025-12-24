@@ -624,7 +624,7 @@ class NuScenesProcessor(object):
             except KeyError:
                 # No lidarseg available for this sample_data (likely a sweep)
                 
-                labels_for_sweep = self.propagate_labels_to_sweep(self.nusc, token, keyframes_tree, keyframes_lbls, r_max=1)
+                labels_for_sweep = self.propagate_labels_to_sweep(self.nusc, token, keyframes_tree, keyframes_lbls, r_max=2)
                 if labels_for_sweep.shape[0] != pc.points.shape[1]:
                     raise RuntimeError(
                         f"Lidarseg size mismatch: {labels_for_sweep.shape[0]} labels vs "
