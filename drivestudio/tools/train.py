@@ -140,10 +140,10 @@ def main(args):
     cfg = setup(args)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    use_contrastive = getattr(
-        cfg.trainer.losses.semantics,
-        "use_contrastive",
-        False
+    use_contrastive = OmegaConf.select(
+        cfg,
+        "trainer.losses.semantics.use_contrastive",
+        default=False
         )
     
     # build dataset
