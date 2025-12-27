@@ -527,9 +527,20 @@ def render_novel_views(trainer, render_data: list, save_path: str, fps: int = 30
                     num_classes=NUM_SEM_CLASSES,
                     ignore_label=IGNORE_LABEL,
                     )
-            print(frame_data["image_infos"]["img_idx"])
-            print(int(frame_data["image_infos"]["img_idx"][0][0]))
-            results[int(frame_data["image_infos"]["img_idx"][0][0])] = sem_metrics
+            
+            def make_json_serialisable(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, (np.floating, np.integer)):
+                    return obj.item()
+                elif isinstance(obj, dict):
+                    return {k: make_json_serialisable(v) for k, v in obj.items()}
+                elif isinstance(obj, (list, tuple)):
+                    return [make_json_serialisable(v) for v in obj]
+                else:
+                    return obj
+
+            results[int(frame_data["image_infos"]["img_idx"][0][0])] = make_json_serialisable(sem_metrics)
 
             sem_rgb = outputs["semantic_rgb"].cpu().numpy().clip(
                 min=1.e-6, max=1-1.e-6
