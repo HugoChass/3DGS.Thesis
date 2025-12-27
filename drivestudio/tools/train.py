@@ -140,8 +140,14 @@ def main(args):
     cfg = setup(args)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    use_contrastive = getattr(
+        cfg.trainer.losses.semantics,
+        "use_contrastive",
+        False
+        )
+    
     # build dataset
-    dataset = DrivingDataset(data_cfg=cfg.data, clip_cfg=cfg.trainer.losses.semantics.use_contrastive)
+    dataset = DrivingDataset(data_cfg=cfg.data, clip_cfg=use_contrastive)
     # setup trainer
     trainer = import_str(cfg.trainer.type)(
         **cfg.trainer,
@@ -438,17 +444,6 @@ def main(args):
                     fps=cfg.render.fps,
                 )
             logger.info("Done caching rgb error maps")
-
-        do_evaluation(
-                step=step,
-                cfg=cfg,
-                trainer=trainer,
-                dataset=dataset,
-                render_keys=render_keys + ["gt_semantic_map"],
-                args=args,
-            )
-        
-        exit(1)
             
     with open(semantic_log_file, "w", encoding="utf-8") as f:
         json.dump(semantic_log, f, indent=2, ensure_ascii=False)
