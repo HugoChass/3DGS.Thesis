@@ -366,14 +366,18 @@ def main(args):
         dt = time.perf_counter() - t0
         log_timing("loss", dt)
 
+        unknown_error = False
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
                 if k == 'Background_sharp_shape_reg':
-                    loss_dict.pop(k, None)
+                    unknown_error = True
                 else:
                     raise ValueError(f"NaN detected in loss {k} at step {step}")
             if torch.isinf(v).any():
                 raise ValueError(f"Inf detected in loss {k} at step {step}")
+        
+        if unknown_error:
+            loss_dict.pop('Background_sharp_shape_reg', None)
 
         t0 = time.perf_counter()
         trainer.backward(loss_dict)
