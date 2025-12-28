@@ -366,6 +366,8 @@ def main(args):
         dt = time.perf_counter() - t0
         log_timing("loss", dt)
 
+        print(loss_dict)
+
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
                 raise ValueError(f"NaN detected in loss {k} at step {step}")
