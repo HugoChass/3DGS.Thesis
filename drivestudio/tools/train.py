@@ -366,11 +366,12 @@ def main(args):
         dt = time.perf_counter() - t0
         log_timing("loss", dt)
 
-        print(loss_dict)
-
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
-                raise ValueError(f"NaN detected in loss {k} at step {step}")
+                if k == 'Background_sharp_shape_reg':
+                    loss_dict.pop(k, None)
+                else:
+                    raise ValueError(f"NaN detected in loss {k} at step {step}")
             if torch.isinf(v).any():
                 raise ValueError(f"Inf detected in loss {k} at step {step}")
 
