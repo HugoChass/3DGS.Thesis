@@ -33,13 +33,13 @@ trainer:
     affine:
       w: 0.00001 # weight of affine regularization
     semantics:
-      warmup_start: 5000
-      full_weight_step: 15000
+      warmup_start: 0
+      full_weight_step: 0
       use_ce: True
       use_focal: False
       use_contrastive: False
       use_reg: False
-      loss_ce_w: 0.1
+      loss_ce_w: 0.01
       loss_focal_w: 0.1
       loss_contrastive_w: 0.1
       loss_reg_w: 0.1
