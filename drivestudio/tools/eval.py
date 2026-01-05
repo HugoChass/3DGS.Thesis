@@ -64,7 +64,7 @@ def do_evaluation(
                     "per_class_recall",
                     "per_class_f1",
                 ]:
-                    eval_dict[f"image_metrics/test/{k}"] = v
+                    eval_dict[f"image_metrics/test/{k}"] = make_json_serializable(v)
             if args.enable_wandb:
                 wandb.log(eval_dict)
             test_metrics_file = f"{cfg.log_dir}/metrics{post_fix}/images_test_{current_time}.json"
