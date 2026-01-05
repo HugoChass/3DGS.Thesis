@@ -43,7 +43,7 @@ INCLUDE_KEYWORDS = None
 # INCLUDE_KEYWORDS = ["Semantic", "CE"]
 
 # Option D: remove run types containing ANY of these substrings
-EXCLUDE_KEYWORDS = None
+EXCLUDE_KEYWORDS = ['Vanilla']
 # Example:
 # EXCLUDE_KEYWORDS = ["debug", "test"]
 
@@ -115,7 +115,7 @@ for subfolder in os.listdir(MAIN_FOLDER):
 
 # Sort run types once for consistent plotting
 run_types = sorted(data.keys())
-
+print(run_types)
 # ==========================
 # PLOTTING
 # ==========================
