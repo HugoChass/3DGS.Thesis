@@ -58,6 +58,11 @@ def do_evaluation(
                     "human_ssim",
                     "vehicle_psnr",
                     "vehicle_ssim",
+                    "miou",
+                    "per_class_iou",
+                    "per_class_precision",
+                    "per_class_recall",
+                    "per_class_f1",
                 ]:
                     eval_dict[f"image_metrics/test/{k}"] = v
             if args.enable_wandb:
