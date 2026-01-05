@@ -43,7 +43,7 @@ INCLUDE_KEYWORDS = None
 # INCLUDE_KEYWORDS = ["Semantic", "CE"]
 
 # Option D: remove run types containing ANY of these substrings
-EXCLUDE_KEYWORDS = ['Vanilla']
+EXCLUDE_KEYWORDS = ['vanilla']
 # Example:
 # EXCLUDE_KEYWORDS = ["debug", "test"]
 
