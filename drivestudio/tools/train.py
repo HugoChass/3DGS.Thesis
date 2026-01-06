@@ -413,6 +413,7 @@ def main(args):
         do_save = step > 0 and (
             (step % cfg.logging.saveckpt_freq == 0) or (step == trainer.num_iters)
         ) and (args.resume_from is None)
+        do_save = False
         if do_save:  
             trainer.save_checkpoint(
                 log_dir=cfg.log_dir,
