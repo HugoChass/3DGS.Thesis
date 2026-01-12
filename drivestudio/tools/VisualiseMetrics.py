@@ -152,29 +152,26 @@ for subfolder in os.listdir(MAIN_FOLDER):
         os.path.join(subfolder_path, "metrics", "images_full_*.json")
     )
 
-    if not metric_files:
-        continue
+    if metric_files:
+        metrics = load_metrics(metric_files[0])
 
-    metrics = load_metrics(metric_files[0])
+        for short_name, full_key in METRICS.items():
+            if full_key in metrics:
+                data[run_type][short_name].append(metrics[full_key])
+    
+    log_files = glob.glob(os.path.join(subfolder_path, "logs", "log_*.txt"))
+    print(log_files)
+    print(os.path.join(subfolder_path, "logs", "log_*.txt"))
 
-    for short_name, full_key in METRICS.items():
-        if full_key in metrics:
-            data[run_type][short_name].append(metrics[full_key])
+    if log_files:
+        # If multiple logs exist, take the most recent by modified time
+        log_files.sort(key=os.path.getmtime, reverse=True)
+        total_s, sec_per_it = parse_log_for_runtime(log_files[0])
 
-# --------- Parse runtime logs ----------
-log_files = glob.glob(os.path.join(subfolder_path, "logs", "log_*.txt"))
-print(log_files)
-print(os.path.join(subfolder_path, "logs", "log_*.txt"))
-if log_files:
-    # If multiple logs exist, take the most recent by modified time
-    log_files.sort(key=os.path.getmtime, reverse=True)
-    total_s, sec_per_it = parse_log_for_runtime(log_files[0])
-
-    if total_s is not None:
-        runtime_data[run_type]["total_time_h"].append(total_s / 3600.0)
-    if sec_per_it is not None:
-        runtime_data[run_type]["sec_per_it"].append(sec_per_it)
-
+        if total_s is not None:
+            runtime_data[run_type]["total_time_h"].append(total_s / 3600.0)
+        if sec_per_it is not None:
+            runtime_data[run_type]["sec_per_it"].append(sec_per_it)
 
 # Sort run types once for consistent plotting
 run_types = sorted(data.keys())
