@@ -163,11 +163,11 @@ for subfolder in os.listdir(MAIN_FOLDER):
 
 # --------- Parse runtime logs ----------
 log_files = glob.glob(os.path.join(subfolder_path, "logs", "log_*.txt"))
-
+print(log_files)
+print(os.path.join(subfolder_path, "logs", "log_*.txt"))
 if log_files:
     # If multiple logs exist, take the most recent by modified time
     log_files.sort(key=os.path.getmtime, reverse=True)
-    print(log_files)
     total_s, sec_per_it = parse_log_for_runtime(log_files[0])
 
     if total_s is not None:
