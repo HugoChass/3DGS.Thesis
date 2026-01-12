@@ -90,33 +90,46 @@ def run_type_allowed(run_type):
 
 import re
 
-TOTAL_TIME_RE = re.compile(
-    r".*Total time:\s*(?P<h>\d+):(?P<m>\d+):(?P<s>\d+)\s*"
-    r"\(\s*(?P<spi>[0-9]*\.?[0-9]+)\s*s\s*/\s*it\s*\)",
-    re.IGNORECASE
-)
+TIME_HMS_RE = re.compile(r"(\d+):(\d{1,2}):(\d{1,2})")              # 1:12:32
+SEC_PER_IT_RE = re.compile(r"\(\s*([0-9]*\.?[0-9]+)\s*s\s*/\s*it")  # (0.145082 s / it)
 
 def parse_log_for_runtime(log_path):
     """
-    Returns (total_time_seconds, seconds_per_iteration) or (None, None) if not found.
+    Returns (total_time_seconds, seconds_per_iteration) or (None, None)
     """
+    total_s = None
+    sec_per_it = None
+
     try:
         with open(log_path, "r", errors="ignore") as f:
             for line in f:
-                # Search, not match, so any prefix is fine
-                m = TOTAL_TIME_RE.search(line)
-                if m:
-                    print(m)
-                    h = int(m.group("h"))
-                    mn = int(m.group("m"))
-                    s = int(m.group("s"))
+                if "total time" not in line.lower():
+                    continue
+                print(line)
+                # Try to parse H:MM:SS anywhere in the line
+                m_time = TIME_HMS_RE.search(line)
+                if m_time:
+                    h = int(m_time.group(1))
+                    mn = int(m_time.group(2))
+                    s = int(m_time.group(3))
                     total_s = h * 3600 + mn * 60 + s
-                    sec_per_it = float(m.group("spi"))
-                    return total_s, sec_per_it
-    except OSError:
-        pass
 
-    return None, None
+                # Try to parse (X s / it)
+                m_spi = SEC_PER_IT_RE.search(line)
+                if m_spi:
+                    sec_per_it = float(m_spi.group(1))
+
+                # If both found on the same line, done
+                if total_s is not None and sec_per_it is not None:
+                    return total_s, sec_per_it
+
+        # If log contains multiple lines, you might get one but not the other;
+        # return whatever we found.
+        return total_s, sec_per_it
+
+    except OSError:
+        return None, None
+
 
 # ==========================
 # DATA COLLECTION
@@ -154,6 +167,7 @@ log_files = glob.glob(os.path.join(subfolder_path, "logs", "log_*.txt"))
 if log_files:
     # If multiple logs exist, take the most recent by modified time
     log_files.sort(key=os.path.getmtime, reverse=True)
+    print(log_files)
     total_s, sec_per_it = parse_log_for_runtime(log_files[0])
 
     if total_s is not None:
