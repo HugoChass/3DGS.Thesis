@@ -20,6 +20,12 @@ METRICS = {
     "miou": "image_metrics/full/miou",
 }
 
+RUNTIME_METRICS = {
+    "total_time_h": "Total time (hours)",
+    "sec_per_it": "Seconds per iteration",
+}
+
+
 # ==========================
 # RUN TYPE FILTERING
 # ==========================
@@ -82,12 +88,39 @@ def run_type_allowed(run_type):
 
     return True
 
+import re
 
+TOTAL_TIME_RE = re.compile(
+    r"Total time:\s*(?P<h>\d+):(?P<m>\d+):(?P<s>\d+)\s*\((?P<spi>[0-9]*\.?[0-9]+)\s*s\s*/\s*it\)"
+)
+
+def parse_log_for_runtime(log_path):
+    """
+    Returns (total_time_seconds, seconds_per_iteration) or (None, None) if not found.
+    """
+    try:
+        with open(log_path, "r", errors="ignore") as f:
+            for line in f:
+                if "Total time:" not in line:
+                    continue
+                m = TOTAL_TIME_RE.search(line)
+                if m:
+                    h = int(m.group("h"))
+                    mn = int(m.group("m"))
+                    s = int(m.group("s"))
+                    total_s = h * 3600 + mn * 60 + s
+                    sec_per_it = float(m.group("spi"))
+                    return total_s, sec_per_it
+    except OSError:
+        pass
+
+    return None, None
 
 # ==========================
 # DATA COLLECTION
 # ==========================
 data = defaultdict(lambda: defaultdict(list))
+runtime_data = defaultdict(lambda: defaultdict(list))
 
 for subfolder in os.listdir(MAIN_FOLDER):
     subfolder_path = os.path.join(MAIN_FOLDER, subfolder)
@@ -112,6 +145,20 @@ for subfolder in os.listdir(MAIN_FOLDER):
     for short_name, full_key in METRICS.items():
         if full_key in metrics:
             data[run_type][short_name].append(metrics[full_key])
+
+# --------- Parse runtime logs ----------
+log_files = glob.glob(os.path.join(subfolder_path, "logs", "log_*.txt"))
+
+if log_files:
+    # If multiple logs exist, take the most recent by modified time
+    log_files.sort(key=os.path.getmtime, reverse=True)
+    total_s, sec_per_it = parse_log_for_runtime(log_files[0])
+
+    if total_s is not None:
+        runtime_data[run_type]["total_time_h"].append(total_s / 3600.0)
+    if sec_per_it is not None:
+        runtime_data[run_type]["sec_per_it"].append(sec_per_it)
+
 
 # Sort run types once for consistent plotting
 run_types = sorted(data.keys())
@@ -155,6 +202,46 @@ for metric_name in METRICS.keys():
 
     box_path = os.path.join(PLOT_DIR, f"{metric_name}_box.png")
     plt.savefig(box_path, dpi=300)
+    plt.close()
+
+# ==========================
+# RUNTIME PLOTTING
+# ==========================
+runtime_run_types = sorted(runtime_data.keys())
+
+for metric_name, y_label in RUNTIME_METRICS.items():
+
+    run_types_metric = [
+        rt for rt in runtime_run_types
+        if metric_name in runtime_data[rt] and len(runtime_data[rt][metric_name]) > 0
+    ]
+
+    if not run_types_metric:
+        print(f"[WARN] No runtime data for: {metric_name}, skipping.")
+        continue
+
+    means = [np.mean(runtime_data[rt][metric_name]) for rt in run_types_metric]
+
+    # --- Mean bar plot ---
+    plt.figure(figsize=(12, 5))
+    plt.bar(run_types_metric, means)
+    plt.xticks(rotation=45, ha="right")
+    plt.ylabel(y_label)
+    plt.title(f"Mean {y_label} over scenes")
+    plt.tight_layout()
+    plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_mean.png"), dpi=300)
+    plt.close()
+
+    # --- Box plot ---
+    box_data = [runtime_data[rt][metric_name] for rt in run_types_metric]
+
+    plt.figure(figsize=(12, 5))
+    plt.boxplot(box_data, labels=run_types_metric, showfliers=True)
+    plt.xticks(rotation=45, ha="right")
+    plt.ylabel(y_label)
+    plt.title(f"{y_label} distribution over scenes")
+    plt.tight_layout()
+    plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_box.png"), dpi=300)
     plt.close()
 
 print(f"Plots saved to: {PLOT_DIR}")
