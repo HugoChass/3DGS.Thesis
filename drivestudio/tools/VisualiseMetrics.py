@@ -106,12 +106,14 @@ def parse_log_for_runtime(log_path):
                 # Search, not match, so any prefix is fine
                 m = TOTAL_TIME_RE.search(line)
                 if m:
-                    print(m)
+                    print(line)
                     h = int(m.group("h"))
                     mn = int(m.group("m"))
                     s = int(m.group("s"))
+                    print(h, mn, s)
                     total_s = h * 3600 + mn * 60 + s
                     sec_per_it = float(m.group("spi"))
+                    print(sec_per_it)
                     return total_s, sec_per_it
     except OSError:
         pass
