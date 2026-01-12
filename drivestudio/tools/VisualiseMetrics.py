@@ -208,9 +208,9 @@ for metric_name in METRICS.keys():
 # RUNTIME PLOTTING
 # ==========================
 runtime_run_types = sorted(runtime_data.keys())
-
+print(runtime_data)
 for metric_name, y_label in RUNTIME_METRICS.items():
-
+    print(metric_name, y_label)
     run_types_metric = [
         rt for rt in runtime_run_types
         if metric_name in runtime_data[rt] and len(runtime_data[rt][metric_name]) > 0
