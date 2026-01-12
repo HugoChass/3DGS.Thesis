@@ -102,23 +102,24 @@ def parse_log_for_runtime(log_path):
 
     try:
         with open(log_path, "r", errors="ignore") as f:
+            print(log_path)
             for line in f:
                 if "total time" not in line.lower():
                     continue
                 # Try to parse H:MM:SS anywhere in the line
+                print(line)
                 m_time = TIME_HMS_RE.search(line)
+                print(m_time)
                 if m_time:
                     h = int(m_time.group(1))
                     mn = int(m_time.group(2))
                     s = int(m_time.group(3))
                     total_s = h * 3600 + mn * 60 + s
-                    print(m_time, h, mn, s, total_s)
 
                 # Try to parse (X s / it)
                 m_spi = SEC_PER_IT_RE.search(line)
                 if m_spi:
                     sec_per_it = float(m_spi.group(1))
-                print(m_spi, sec_per_it)
                 # If both found on the same line, done
                 if total_s is not None and sec_per_it is not None:
                     return total_s, sec_per_it
