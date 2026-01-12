@@ -105,7 +105,6 @@ def parse_log_for_runtime(log_path):
             for line in f:
                 if "total time" not in line.lower():
                     continue
-                print(line)
                 # Try to parse H:MM:SS anywhere in the line
                 m_time = TIME_HMS_RE.search(line)
                 if m_time:
@@ -113,12 +112,13 @@ def parse_log_for_runtime(log_path):
                     mn = int(m_time.group(2))
                     s = int(m_time.group(3))
                     total_s = h * 3600 + mn * 60 + s
+                    print(m_time, h, mn, s, total_s)
 
                 # Try to parse (X s / it)
                 m_spi = SEC_PER_IT_RE.search(line)
                 if m_spi:
                     sec_per_it = float(m_spi.group(1))
-
+                print(m_spi, sec_per_it)
                 # If both found on the same line, done
                 if total_s is not None and sec_per_it is not None:
                     return total_s, sec_per_it
@@ -160,8 +160,6 @@ for subfolder in os.listdir(MAIN_FOLDER):
                 data[run_type][short_name].append(metrics[full_key])
     
     log_files = glob.glob(os.path.join(subfolder_path, "logs", "log_*.txt"))
-    print(log_files)
-    print(os.path.join(subfolder_path, "logs", "log_*.txt"))
 
     if log_files:
         # If multiple logs exist, take the most recent by modified time
