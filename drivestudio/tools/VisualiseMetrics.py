@@ -104,6 +104,8 @@ def parse_log_for_runtime(log_path):
         with open(log_path, "r", errors="ignore") as f:
             for line in f:
                 # Search, not match, so any prefix is fine
+                if "total time" not in line.lower():
+                    continue
                 m = TOTAL_TIME_RE.search(line)
                 if m:
                     h = int(m.group("h"))
