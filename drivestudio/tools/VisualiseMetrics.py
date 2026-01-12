@@ -91,7 +91,9 @@ def run_type_allowed(run_type):
 import re
 
 TOTAL_TIME_RE = re.compile(
-    r"Total time:\s*(?P<h>\d+):(?P<m>\d+):(?P<s>\d+)\s*\((?P<spi>[0-9]*\.?[0-9]+)\s*s\s*/\s*it\)"
+    r".*Total time:\s*(?P<h>\d+):(?P<m>\d+):(?P<s>\d+)\s*"
+    r"\(\s*(?P<spi>[0-9]*\.?[0-9]+)\s*s\s*/\s*it\s*\)",
+    re.IGNORECASE
 )
 
 def parse_log_for_runtime(log_path):
@@ -101,10 +103,10 @@ def parse_log_for_runtime(log_path):
     try:
         with open(log_path, "r", errors="ignore") as f:
             for line in f:
-                if "Total time:" not in line:
-                    continue
+                # Search, not match, so any prefix is fine
                 m = TOTAL_TIME_RE.search(line)
                 if m:
+                    print(m)
                     h = int(m.group("h"))
                     mn = int(m.group("m"))
                     s = int(m.group("s"))
@@ -208,9 +210,7 @@ for metric_name in METRICS.keys():
 # RUNTIME PLOTTING
 # ==========================
 runtime_run_types = sorted(runtime_data.keys())
-print(runtime_data)
 for metric_name, y_label in RUNTIME_METRICS.items():
-    print(metric_name, y_label)
     run_types_metric = [
         rt for rt in runtime_run_types
         if metric_name in runtime_data[rt] and len(runtime_data[rt][metric_name]) > 0
