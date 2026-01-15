@@ -32,7 +32,7 @@ for m in METHODS:
     # ==========================
 
     # Option A: keep ONLY these run types (exact match)
-    INCLUDE_RUN_TYPES = ["streetgsSemantic_Focal_0,001_N2", "streetgsSemantic_Focal_0,001"]
+    INCLUDE_RUN_TYPES = None
     # Example:
     # INCLUDE_RUN_TYPES = [
     #     "streetgsSemantic_CE_0,01",
@@ -45,7 +45,9 @@ for m in METHODS:
     # EXCLUDE_RUN_TYPES = ["vanilla005"]
 
     # Option C: keep run types containing ANY of these substrings
-    INCLUDE_KEYWORDS = []
+    INCLUDE_KEYWORDS = ["streetgsSemantic_Focal_0,001_N2", "streetgsSemantic_Focal_0,001", m]
+    if m == "Semantic_CE":
+        INCLUDE_KEYWORDS = ["Semantic_Focal" , m]
     # Example:
     # INCLUDE_KEYWORDS = ["Semantic", "CE"]
 
