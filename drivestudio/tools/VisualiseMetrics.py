@@ -242,7 +242,15 @@ for metric_name in METRICS.keys():
     plt.xticks(rotation=45, ha="right")
     plt.ylabel(metric_name.upper())
     plt.title(f"Mean {metric_name.upper()} over scenes (sorted by mean)")
-    plt.legend(handles=legend_handles, title="Method", loc="best", fontsize=8)
+    # Put legend outside (right side)
+    plt.legend(
+        handles=legend_handles,
+        title="Method",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        fontsize=8,
+    )
     plt.tight_layout()
     plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_mean_sorted_colored.png"), dpi=300)
     plt.close()
@@ -261,7 +269,15 @@ for metric_name in METRICS.keys():
     plt.xticks(rotation=45, ha="right")
     plt.ylabel(metric_name.upper())
     plt.title(f"{metric_name.upper()} distribution over scenes (sorted by mean)")
-    plt.legend(handles=legend_handles, title="Method", loc="best", fontsize=8)
+    # Put legend outside (right side)
+    plt.legend(
+        handles=legend_handles,
+        title="Method",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        fontsize=8,
+    )
     plt.tight_layout()
     plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_box_sorted_colored.png"), dpi=300)
     plt.close()
@@ -314,7 +330,15 @@ for metric_name, y_label in RUNTIME_METRICS.items():
     plt.xticks(rotation=45, ha="right")
     plt.ylabel(y_label)
     plt.title(f"Mean {y_label} over scenes (sorted by mean)")
-    plt.legend(handles=legend_handles, title="Method", loc="best", fontsize=8)
+    # Put legend outside (right side)
+    plt.legend(
+        handles=legend_handles,
+        title="Method",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        fontsize=8,
+    )
     plt.tight_layout()
     plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_mean_sorted_colored.png"), dpi=300)
     plt.close()
@@ -333,7 +357,15 @@ for metric_name, y_label in RUNTIME_METRICS.items():
     plt.xticks(rotation=45, ha="right")
     plt.ylabel(y_label)
     plt.title(f"{y_label} distribution over scenes (sorted by mean)")
-    plt.legend(handles=legend_handles, title="Method", loc="best", fontsize=8)
+    # Put legend outside (right side)
+    plt.legend(
+        handles=legend_handles,
+        title="Method",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        fontsize=8,
+    )
     plt.tight_layout()
     plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_box_sorted_colored.png"), dpi=300)
     plt.close()
