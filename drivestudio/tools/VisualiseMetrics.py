@@ -25,7 +25,7 @@ RUNTIME_METRICS = {
     "sec_per_it": "Seconds per iteration",
 }
 
-METHODS = [None, "Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
+METHODS = ['None', "Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
 
 # ==========================
 # HELPER FUNCTIONS
@@ -185,7 +185,7 @@ for m in METHODS:
 
     # Option C: keep run types containing ANY of these substrings
     INCLUDE_KEYWORDS = None
-    if m is not None:
+    if m != 'None':
         INCLUDE_KEYWORDS = ["streetgsSemantic_Focal_0,001_N2", "streetgsSemantic_Focal_0,001", m]
     if m == "Semantic_CE":
         INCLUDE_KEYWORDS = ["Semantic_Focal" , m]
@@ -197,7 +197,7 @@ for m in METHODS:
     # Example:
     # EXCLUDE_KEYWORDS = ["debug", "test"]
     NAME_PREFIX = ''
-    if m is not None:
+    if m != 'None':
         NAME_PREFIX = f"{m.split('_')[1]}_"
 
     # ==========================
