@@ -25,6 +25,8 @@ RUNTIME_METRICS = {
     "sec_per_it": "Seconds per iteration",
 }
 
+METHODS = ["Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
+
 # ==========================
 # HELPER FUNCTIONS
 # ==========================
@@ -163,8 +165,6 @@ ALL_METHOD_KEYS_ORDERED = sorted(all_method_keys, key=method_sort_key)
 
 GLOBAL_METHOD_COLOR = build_method_color_map_from_methods(ALL_METHOD_KEYS_ORDERED)
 
-
-METHODS = ["Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
 for m in METHODS:
     # ==========================
     # RUN TYPE FILTERING
