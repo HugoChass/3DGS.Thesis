@@ -17,7 +17,7 @@ METRICS = {
     "psnr": "image_metrics/full/psnr",
     "ssim": "image_metrics/full/ssim",
     "lpips": "image_metrics/full/lpips",
-    "miou": "image_metrics/full/miou",
+    #"miou": "image_metrics/full/miou",
 }
 
 RUNTIME_METRICS = {
@@ -49,7 +49,7 @@ INCLUDE_KEYWORDS = None
 # INCLUDE_KEYWORDS = ["Semantic", "CE"]
 
 # Option D: remove run types containing ANY of these substrings
-EXCLUDE_KEYWORDS = ['vanilla']
+EXCLUDE_KEYWORDS = None
 # Example:
 # EXCLUDE_KEYWORDS = ["debug", "test"]
 
