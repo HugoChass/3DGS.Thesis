@@ -17,7 +17,7 @@ METRICS = {
     "psnr": "image_metrics/full/psnr",
     "ssim": "image_metrics/full/ssim",
     "lpips": "image_metrics/full/lpips",
-    #"miou": "image_metrics/full/miou",
+    "miou": "image_metrics/full/miou",
 }
 
 RUNTIME_METRICS = {
@@ -44,15 +44,16 @@ EXCLUDE_RUN_TYPES = None
 # EXCLUDE_RUN_TYPES = ["vanilla005"]
 
 # Option C: keep run types containing ANY of these substrings
-INCLUDE_KEYWORDS = None
+INCLUDE_KEYWORDS = ["Semantic_Focal", "Semantic_CE"]
 # Example:
 # INCLUDE_KEYWORDS = ["Semantic", "CE"]
 
 # Option D: remove run types containing ANY of these substrings
-EXCLUDE_KEYWORDS = None
+EXCLUDE_KEYWORDS = ["vanilla"]
 # Example:
 # EXCLUDE_KEYWORDS = ["debug", "test"]
 
+NAME_PREFIX = "Cross_Entropy_"
 
 # ==========================
 # HELPER FUNCTIONS
@@ -252,7 +253,7 @@ for metric_name in METRICS.keys():
         fontsize=8,
     )
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_mean_sorted_colored.png"), dpi=300)
+    plt.savefig(os.path.join(PLOT_DIR, f"{NAME_PREFIX}{metric_name}_mean_sorted_colored.png"), dpi=300)
     plt.close()
 
     # ---------- BOX PLOT (DISTRIBUTION) ----------
@@ -279,7 +280,7 @@ for metric_name in METRICS.keys():
         fontsize=8,
     )
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_box_sorted_colored.png"), dpi=300)
+    plt.savefig(os.path.join(PLOT_DIR, f"{NAME_PREFIX}{metric_name}_box_sorted_colored.png"), dpi=300)
     plt.close()
 
 # ==========================
@@ -340,7 +341,7 @@ for metric_name, y_label in RUNTIME_METRICS.items():
         fontsize=8,
     )
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_mean_sorted_colored.png"), dpi=300)
+    plt.savefig(os.path.join(PLOT_DIR, f"{NAME_PREFIX}{metric_name}_mean_sorted_colored.png"), dpi=300)
     plt.close()
 
     # --- Box plot ---
@@ -367,7 +368,7 @@ for metric_name, y_label in RUNTIME_METRICS.items():
         fontsize=8,
     )
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, f"{metric_name}_box_sorted_colored.png"), dpi=300)
+    plt.savefig(os.path.join(PLOT_DIR, f"{NAME_PREFIX}{metric_name}_box_sorted_colored.png"), dpi=300)
     plt.close()
 
 print(f"Runtime plots saved to: {PLOT_DIR}")
