@@ -25,6 +25,145 @@ RUNTIME_METRICS = {
     "sec_per_it": "Seconds per iteration",
 }
 
+# ==========================
+# HELPER FUNCTIONS
+# ==========================
+def extract_run_type(folder_name):
+    """
+    Removes the trailing _XXX scene id.
+    Assumes scene id is always the last 3 characters.
+    """
+    return folder_name[:-4] if folder_name[-4] == "_" else folder_name
+
+
+def load_metrics(json_path):
+    with open(json_path, "r") as f:
+        return json.load(f)
+
+def run_type_allowed(run_type):
+    if INCLUDE_RUN_TYPES is not None:
+        if run_type not in INCLUDE_RUN_TYPES:
+            return False
+
+    if EXCLUDE_RUN_TYPES is not None:
+        if run_type in EXCLUDE_RUN_TYPES:
+            return False
+
+    if INCLUDE_KEYWORDS is not None:
+        if not any(k in run_type for k in INCLUDE_KEYWORDS):
+            return False
+
+    if EXCLUDE_KEYWORDS is not None:
+        if any(k in run_type for k in EXCLUDE_KEYWORDS):
+            return False
+
+    return True
+
+import re
+
+TOTAL_TIME_RE = re.compile(
+    r".*Total time:\s*(?P<h>\d+):(?P<m>\d+):(?P<s>\d+)\s*"
+    r"\(\s*(?P<spi>[0-9]*\.?[0-9]+)\s*s\s*/\s*it\s*\)",
+    re.IGNORECASE
+)
+
+def parse_log_for_runtime(log_path):
+    """
+    Returns (total_time_seconds, seconds_per_iteration) or (None, None) if not found.
+    """
+    try:
+        with open(log_path, "r", errors="ignore") as f:
+            for line in f:
+                # Search, not match, so any prefix is fine
+                if "total time" not in line.lower():
+                    continue
+                m = TOTAL_TIME_RE.search(line)
+                if m:
+                    h = int(m.group("h"))
+                    mn = int(m.group("m"))
+                    s = int(m.group("s"))
+                    total_s = h * 3600 + mn * 60 + s
+                    sec_per_it = float(m.group("spi"))
+                    return total_s, sec_per_it
+    except OSError:
+        pass
+
+    return None, None
+
+from matplotlib.patches import Patch
+
+# Metrics where "higher is better" (sorted descending). Others will be sorted ascending.
+HIGHER_IS_BETTER = {
+    "psnr", "ssim", "miou",
+    # add more if you plot them
+}
+# e.g. LPIPS and runtime: lower is better -> ascending by default
+
+
+def method_key_from_run_type(run_type: str) -> str:
+    """
+    Groups run types into method families.
+    Examples:
+    streetgsSemantic_CE_0,01 -> streetgsSemantic_CE
+    streetgsSemantic_Focal_0,3_N2 -> streetgsSemantic_Focal
+    vanilla005 -> vanilla005
+    """
+    parts = run_type.split("_")
+    if len(parts) >= 2:
+        return "_".join(parts[:2])
+    return run_type
+
+
+# def build_method_color_map(run_types):
+#     """
+#     Map each method_key to a stable color using matplotlib's default color cycle.
+#     """
+#     cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
+#     if not cycle:
+#         cycle = ["C0","C1","C2","C3","C4","C5","C6","C7","C8","C9"]
+
+#     methods = sorted({method_key_from_run_type(rt) for rt in run_types})
+#     return {m: cycle[i % len(cycle)] for i, m in enumerate(methods)}
+
+def build_method_color_map_from_methods(method_keys_in_order):
+    """
+    Map each method_key to a stable color using matplotlib's default color cycle,
+    using a fixed order of method keys so colors are consistent across all plots.
+    """
+    cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
+    if not cycle:
+        cycle = ["C0","C1","C2","C3","C4","C5","C6","C7","C8","C9"]
+
+    return {mk: cycle[i % len(cycle)] for i, mk in enumerate(method_keys_in_order)}
+
+# --------------------------
+# GLOBAL METHOD COLOR MAP (consistent across all graphs)
+# --------------------------
+all_method_keys = set()
+
+for subfolder in os.listdir(MAIN_FOLDER):
+    subfolder_path = os.path.join(MAIN_FOLDER, subfolder)
+    if not os.path.isdir(subfolder_path):
+        continue
+    run_type_global = extract_run_type(subfolder) if "extract_run_type" in globals() else (subfolder[:-4] if subfolder[-4] == "_" else subfolder)
+    all_method_keys.add(method_key_from_run_type(run_type_global) if "method_key_from_run_type" in globals() else "_".join(run_type_global.split("_")[:2]))
+
+# Stable ordering:
+# 1) Put known METHODS first if they appear in method_key strings
+# 2) Then everything else alphabetically
+
+def method_sort_key(mk):
+    # Prefer grouping by your METHODS list order when it matches mk
+    for i, tag in enumerate(METHODS):
+        if tag in mk:
+            return (0, i, mk)
+    return (1, 999, mk)
+
+ALL_METHOD_KEYS_ORDERED = sorted(all_method_keys, key=method_sort_key)
+
+GLOBAL_METHOD_COLOR = build_method_color_map_from_methods(ALL_METHOD_KEYS_ORDERED)
+
+
 METHODS = ["Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
 for m in METHODS:
     # ==========================
@@ -57,107 +196,6 @@ for m in METHODS:
     # EXCLUDE_KEYWORDS = ["debug", "test"]
 
     NAME_PREFIX = f"{m.split('_')[1]}_"
-
-    # ==========================
-    # HELPER FUNCTIONS
-    # ==========================
-    def extract_run_type(folder_name):
-        """
-        Removes the trailing _XXX scene id.
-        Assumes scene id is always the last 3 characters.
-        """
-        return folder_name[:-4] if folder_name[-4] == "_" else folder_name
-
-
-    def load_metrics(json_path):
-        with open(json_path, "r") as f:
-            return json.load(f)
-
-    def run_type_allowed(run_type):
-        if INCLUDE_RUN_TYPES is not None:
-            if run_type not in INCLUDE_RUN_TYPES:
-                return False
-
-        if EXCLUDE_RUN_TYPES is not None:
-            if run_type in EXCLUDE_RUN_TYPES:
-                return False
-
-        if INCLUDE_KEYWORDS is not None:
-            if not any(k in run_type for k in INCLUDE_KEYWORDS):
-                return False
-
-        if EXCLUDE_KEYWORDS is not None:
-            if any(k in run_type for k in EXCLUDE_KEYWORDS):
-                return False
-
-        return True
-
-    import re
-
-    TOTAL_TIME_RE = re.compile(
-        r".*Total time:\s*(?P<h>\d+):(?P<m>\d+):(?P<s>\d+)\s*"
-        r"\(\s*(?P<spi>[0-9]*\.?[0-9]+)\s*s\s*/\s*it\s*\)",
-        re.IGNORECASE
-    )
-
-    def parse_log_for_runtime(log_path):
-        """
-        Returns (total_time_seconds, seconds_per_iteration) or (None, None) if not found.
-        """
-        try:
-            with open(log_path, "r", errors="ignore") as f:
-                for line in f:
-                    # Search, not match, so any prefix is fine
-                    if "total time" not in line.lower():
-                        continue
-                    m = TOTAL_TIME_RE.search(line)
-                    if m:
-                        h = int(m.group("h"))
-                        mn = int(m.group("m"))
-                        s = int(m.group("s"))
-                        total_s = h * 3600 + mn * 60 + s
-                        sec_per_it = float(m.group("spi"))
-                        return total_s, sec_per_it
-        except OSError:
-            pass
-
-        return None, None
-
-    from matplotlib.patches import Patch
-
-    # Metrics where "higher is better" (sorted descending). Others will be sorted ascending.
-    HIGHER_IS_BETTER = {
-        "psnr", "ssim", "miou",
-        # add more if you plot them
-    }
-    # e.g. LPIPS and runtime: lower is better -> ascending by default
-
-
-    def method_key_from_run_type(run_type: str) -> str:
-        """
-        Groups run types into method families.
-        Examples:
-        streetgsSemantic_CE_0,01 -> streetgsSemantic_CE
-        streetgsSemantic_Focal_0,3_N2 -> streetgsSemantic_Focal
-        vanilla005 -> vanilla005
-        """
-        parts = run_type.split("_")
-        if len(parts) >= 2:
-            return "_".join(parts[:2])
-        return run_type
-
-
-    def build_method_color_map(run_types):
-        """
-        Map each method_key to a stable color using matplotlib's default color cycle.
-        """
-        cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
-        if not cycle:
-            cycle = ["C0","C1","C2","C3","C4","C5","C6","C7","C8","C9"]
-
-        methods = sorted({method_key_from_run_type(rt) for rt in run_types})
-        return {m: cycle[i % len(cycle)] for i, m in enumerate(methods)}
-
 
     # ==========================
     # DATA COLLECTION
@@ -209,7 +247,7 @@ for m in METHODS:
     # PLOTTING (ORDERED + COLORED BY METHOD)
     # ==========================
     all_run_types = sorted(data.keys())
-    method_color = build_method_color_map(all_run_types)
+    method_color = GLOBAL_METHOD_COLOR
 
     for metric_name in METRICS.keys():
 
@@ -298,7 +336,7 @@ for m in METHODS:
     runtime_run_types = sorted(runtime_data.keys())
 
     # Use the same method-color mapping idea
-    runtime_method_color = build_method_color_map(runtime_run_types)
+    runtime_method_color = GLOBAL_METHOD_COLOR
 
     for metric_name, y_label in RUNTIME_METRICS.items():
         run_types_metric = [
