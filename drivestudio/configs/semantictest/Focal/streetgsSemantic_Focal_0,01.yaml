@@ -16,7 +16,7 @@ trainer:
     absgrad: true # whether to use absolute gradient for rendering, supported by gsplat kernel
     sparse_grad: false # whether to use sparse gradient for rendering, supported by gsplat kernel
     batch_size: 1 # batch size for rendering, currently only support 1
-    nbr_pass: 1 # 1 or 2 pass combine/seperate rgb semantic render
+    nbr_pass: 2 # 1 or 2 pass combine/seperate rgb semantic render
   losses:
     rgb:
       w: 0.8
