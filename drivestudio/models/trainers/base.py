@@ -549,51 +549,51 @@ class BasicTrainer(nn.Module):
         # ----------------------------
         # Testing
 
-        def compare_arrays_percent(a, b, value_range=None, pixel_mode=False):
-            a = np.asarray(a)
-            b = np.asarray(b)
+        # def compare_arrays_percent(a, b, value_range=None, pixel_mode=False):
+        #     a = np.asarray(a)
+        #     b = np.asarray(b)
 
-            if a.shape != b.shape:
-                raise ValueError(f"Shape mismatch: {a.shape} vs {b.shape}")
+        #     if a.shape != b.shape:
+        #         raise ValueError(f"Shape mismatch: {a.shape} vs {b.shape}")
 
-            # 1) exact difference %
-            if pixel_mode and a.ndim == 3:
-                # pixel differs if any channel differs
-                exact_percent = 100.0 * np.mean(np.any(a != b, axis=-1))
-            else:
-                exact_percent = 100.0 * np.mean(a != b)
+        #     # 1) exact difference %
+        #     if pixel_mode and a.ndim == 3:
+        #         # pixel differs if any channel differs
+        #         exact_percent = 100.0 * np.mean(np.any(a != b, axis=-1))
+        #     else:
+        #         exact_percent = 100.0 * np.mean(a != b)
 
-            # numeric difference
-            af = a.astype(np.float32)
-            bf = b.astype(np.float32)
+        #     # numeric difference
+        #     af = a.astype(np.float32)
+        #     bf = b.astype(np.float32)
 
-            mae = np.mean(np.abs(af - bf))
-            rmse = np.sqrt(np.mean((af - bf) ** 2))
+        #     mae = np.mean(np.abs(af - bf))
+        #     rmse = np.sqrt(np.mean((af - bf) ** 2))
 
-            # pick range
-            if value_range is None:
-                # auto range based on data
-                value_range = np.max([af.max(), bf.max()]) - np.min([af.min(), bf.min()])
-                if value_range == 0:
-                    value_range = 1.0
+        #     # pick range
+        #     if value_range is None:
+        #         # auto range based on data
+        #         value_range = np.max([af.max(), bf.max()]) - np.min([af.min(), bf.min()])
+        #         if value_range == 0:
+        #             value_range = 1.0
 
-            mae_percent = 100.0 * (mae / value_range)
-            rmse_percent = 100.0 * (rmse / value_range)
+        #     mae_percent = 100.0 * (mae / value_range)
+        #     rmse_percent = 100.0 * (rmse / value_range)
 
-            return {
-                "exact_difference_%": exact_percent,
-                "mae_%": mae_percent,
-                "rmse_%": rmse_percent
-            }
+        #     return {
+        #         "exact_difference_%": exact_percent,
+        #         "mae_%": mae_percent,
+        #         "rmse_%": rmse_percent
+        #     }
 
-        results_N1 = self.render_gaussians_one_pass(gs, cam, **kwargs)
-        results_N2 = self.render_gaussians_two_pass(gs, cam, **kwargs)
+        # results_N1 = self.render_gaussians_one_pass(gs, cam, **kwargs)
+        # results_N2 = self.render_gaussians_two_pass(gs, cam, **kwargs)
 
-        print(f"Compare RGB: {compare_arrays_percent(results_N1["rgb_gaussians"], results_N2["rgb_gaussians"])}") 
-        print(f"Compare Logits: {compare_arrays_percent(results_N1["semantic_logits"], results_N2["semantic_logits"])}") 
-        print(f"Compare Probs: {compare_arrays_percent(results_N1["semantic_probs"], results_N2["semantic_probs"])}") 
-        print(f"Compare Labels: {compare_arrays_percent(results_N1["semantic_label"], results_N2["semantic_label"])}") 
-        exit(0)
+        # print(f"Compare RGB: {compare_arrays_percent(results_N1["rgb_gaussians"], results_N2["rgb_gaussians"])}") 
+        # print(f"Compare Logits: {compare_arrays_percent(results_N1["semantic_logits"], results_N2["semantic_logits"])}") 
+        # print(f"Compare Probs: {compare_arrays_percent(results_N1["semantic_probs"], results_N2["semantic_probs"])}") 
+        # print(f"Compare Labels: {compare_arrays_percent(results_N1["semantic_label"], results_N2["semantic_label"])}") 
+        # exit(0)
 
         if n == 1:
             return self.render_gaussians_one_pass(gs, cam, **kwargs)
