@@ -14,6 +14,7 @@ data/nuscenes
 data/kitti
 data/nuplan
 launch/old
+configs/semantictest/old
 vscode_debugs
 debug/
 .vscode
