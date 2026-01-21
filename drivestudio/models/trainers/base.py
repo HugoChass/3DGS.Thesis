@@ -596,8 +596,10 @@ class BasicTrainer(nn.Module):
         # exit(0)
 
         if n == 1:
+            print("rendering 1 pass")
             return self.render_gaussians_one_pass(gs, cam, **kwargs)
         elif n == 2:
+            print("rendering 2 pass")
             return self.render_gaussians_two_pass(gs, cam, **kwargs)
         else:
             raise ValueError(
