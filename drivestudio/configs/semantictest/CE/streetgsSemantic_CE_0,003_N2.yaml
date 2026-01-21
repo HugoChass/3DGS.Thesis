@@ -35,15 +35,14 @@ trainer:
     semantics:
       warmup_start: 0
       full_weight_step: 0
-      use_ce: False
-      use_focal: True
+      use_ce: True
+      use_focal: False
       use_contrastive: False
-      use_reg: True
-      reg_type: entropy
-      loss_ce_w: 1
-      loss_focal_w: 0.001
+      use_reg: False
+      loss_ce_w: 0.003
+      loss_focal_w: 0.1
       loss_contrastive_w: 0.1
-      loss_reg_w: 0.0001
+      loss_reg_w: 0.1
       class_weight_mode: null        # or "inv_freq" or null
       class_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]   # only used if mode == "manual"
       inv_freq_eps: 1e-6                 # numerical stability

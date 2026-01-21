@@ -16,7 +16,7 @@ trainer:
     absgrad: true # whether to use absolute gradient for rendering, supported by gsplat kernel
     sparse_grad: false # whether to use sparse gradient for rendering, supported by gsplat kernel
     batch_size: 1 # batch size for rendering, currently only support 1
-    nbr_pass: 1 # 1 or 2 pass combine/seperate rgb semantic render
+    nbr_pass: 2 # 1 or 2 pass combine/seperate rgb semantic render
   losses:
     rgb:
       w: 0.8
@@ -43,8 +43,8 @@ trainer:
       loss_focal_w: 0.001
       loss_contrastive_w: 0.1
       loss_reg_w: 0.1
-      class_weight_mode: inv_freq        # or "inv_freq" or null
-      class_weights: [1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 0.5, 0.5, 1, 2, 2, 2, 2, 2, 0.5]   # only used if mode == "manual"
+      class_weight_mode: null        # or "inv_freq" or null
+      class_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]   # only used if mode == "manual"
       inv_freq_eps: 1e-6                 # numerical stability
       normalize_class_weights: true      # optional, keep average weight ≈ 1
   res_schedule:

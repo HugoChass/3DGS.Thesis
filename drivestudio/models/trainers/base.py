@@ -619,8 +619,8 @@ class BasicTrainer(nn.Module):
                 opacities = opacities * opacity_mask
 
             # Pack RGB + semantic logits
-            sem = gs.semantics
-            colors_all = torch.cat([gs.rgbs, sem.to(gs.rgbs.dtype)], dim=-1)  # [N, 3+C]
+            sem_probs = torch.softmax(gs.semantics, dim=-1)  # [N,C]
+            colors_all = torch.cat([gs.rgbs, sem_probs.to(gs.rgbs.dtype)], dim=-1)
 
             renders, alphas, info = rasterization(
                 means=gs.means,
@@ -775,7 +775,7 @@ class BasicTrainer(nn.Module):
             # Pass 2: Semantics (+ depth)
             # -------------------------
             # Render semantic logits as "colors" (features). Keep dtype aligned.
-            sem_colors = gs.semantics.to(dtype)     # [N, C]
+            sem_colors = torch.softmax(gs.semantics, dim=-1)  # [N,C]
 
             renders_sem, alphas_sem, info_sem = rasterization(
                 means=gs.means,
