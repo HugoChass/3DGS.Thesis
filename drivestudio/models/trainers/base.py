@@ -825,7 +825,7 @@ class BasicTrainer(nn.Module):
         # sem_logits: [H, W, C] (no bg)
         if sem_logits is not None:
             # foreground probs from logits
-            fg_probs = sem_logits.float().softmax(-1)  # [H,W,C]
+            fg_probs = sem_logits.float()#.softmax(-1)  # [H,W,C]
 
             # background mass ~ 1 - accumulated alpha (from RGB pass)
             alpha_total = opacity.squeeze(-1)          # [H,W]
