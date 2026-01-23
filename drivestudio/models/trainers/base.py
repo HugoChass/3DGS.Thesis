@@ -596,10 +596,8 @@ class BasicTrainer(nn.Module):
         # exit(0)
 
         if n == 1:
-            print("rendering 1 pass")
             return self.render_gaussians_one_pass(gs, cam, **kwargs)
         elif n == 2:
-            print("rendering 2 pass")
             return self.render_gaussians_two_pass(gs, cam, **kwargs)
         else:
             raise ValueError(
@@ -841,7 +839,7 @@ class BasicTrainer(nn.Module):
             sem_labels = sem_all.argmax(-1, keepdim=True).to(torch.int32)  # [H,W,1]
 
             # testing
-            sem_logits = sem_logits.float() / (sem_logits.float().sum(dim=-1, keepdim=True) + 1e-6)
+            sem_logits = sem_all[:,:,:-1]
 
             results["semantic_logits"] = sem_logits          # blended logits (no bg)
             results["semantic_probs"]  = sem_all             # probs (C+1 incl. bg)
