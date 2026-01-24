@@ -1,9 +1,9 @@
 #!/bin/bash -l
 #SBATCH --partition=general
 #SBATCH --qos=short
-#SBATCH --time=04:00:00
+#SBATCH --time=02:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
@@ -67,8 +67,15 @@ echo "task=$task config=$config_file scene=$scene_idx run_name=$run_name"
 srun apptainer exec --nv "$IMG" bash -lc "
   cd /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio
   set -euo pipefail
+  sleep $(( (SLURM_ARRAY_TASK_ID % 5) * 60 ))
   source /home/miniconda3/bin/activate
   conda activate drivestudio || true
+
+  export TMPDIR=\${SLURM_TMPDIR:-/tmp}
+  export XDG_CACHE_HOME=\$TMPDIR/.cache
+  export TORCH_HOME=\$TMPDIR/torch
+  export CUDA_CACHE_PATH=\$TMPDIR/cuda_cache
+  mkdir -p \$XDG_CACHE_HOME \$TORCH_HOME \$CUDA_CACHE_PATH
 
   export PYTHONPATH=/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio
   python tools/train.py \
