@@ -26,7 +26,7 @@ RUNTIME_METRICS = {
 }
 
 # METHODS = ['None', "Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
-METHODS = [None]
+METHODS = ["None"]
 # ==========================
 # HELPER FUNCTIONS
 # ==========================
