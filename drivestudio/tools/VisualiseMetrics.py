@@ -8,7 +8,7 @@ from collections import defaultdict
 # ==========================
 # CONFIG
 # ==========================
-MAIN_FOLDER = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/ThesisResearch"
+MAIN_FOLDER = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/ThesisResults"
 PLOT_DIR = os.path.join(MAIN_FOLDER, "plots")
 
 os.makedirs(PLOT_DIR, exist_ok=True)
