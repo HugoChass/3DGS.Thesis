@@ -14,10 +14,10 @@ PLOT_DIR = os.path.join(MAIN_FOLDER, "plots")
 os.makedirs(PLOT_DIR, exist_ok=True)
 
 METRICS = {
-    "psnr": "image_metrics/full/psnr",
-    "ssim": "image_metrics/full/ssim",
-    "lpips": "image_metrics/full/lpips",
-    # "miou": "image_metrics/full/miou",
+    # "psnr": "image_metrics/full/psnr",
+    # "ssim": "image_metrics/full/ssim",
+    # "lpips": "image_metrics/full/lpips",
+    "miou": "image_metrics/full/miou",
 }
 
 RUNTIME_METRICS = {
@@ -193,7 +193,7 @@ for m in METHODS:
     # INCLUDE_KEYWORDS = ["Semantic", "CE"]
 
     # Option D: remove run types containing ANY of these substrings
-    EXCLUDE_KEYWORDS = None # ["vanilla"]
+    EXCLUDE_KEYWORDS = ["vanilla"]
     # Example:
     # EXCLUDE_KEYWORDS = ["debug", "test"]
     NAME_PREFIX = ''
