@@ -17,7 +17,7 @@ METRICS = {
     "psnr": "image_metrics/full/psnr",
     "ssim": "image_metrics/full/ssim",
     "lpips": "image_metrics/full/lpips",
-    "miou": "image_metrics/full/miou",
+    # "miou": "image_metrics/full/miou",
 }
 
 RUNTIME_METRICS = {
@@ -25,8 +25,8 @@ RUNTIME_METRICS = {
     "sec_per_it": "Seconds per iteration",
 }
 
-METHODS = ['None', "Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
-
+# METHODS = ['None', "Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
+METHODS = [None]
 # ==========================
 # HELPER FUNCTIONS
 # ==========================
@@ -185,15 +185,15 @@ for m in METHODS:
 
     # Option C: keep run types containing ANY of these substrings
     INCLUDE_KEYWORDS = None
-    if m != 'None':
-        INCLUDE_KEYWORDS = ["streetgsSemantic_Focal_0,001_N2", "streetgsSemantic_Focal_0,001", m]
-    if m == "Semantic_CE":
-        INCLUDE_KEYWORDS = ["Semantic_Focal" , m]
+    # if m != 'None':
+    #     INCLUDE_KEYWORDS = ["streetgsSemantic_Focal_0,001_N2", "streetgsSemantic_Focal_0,001", m]
+    # if m == "Semantic_CE":
+    #     INCLUDE_KEYWORDS = ["Semantic_Focal" , m]
     # Example:
     # INCLUDE_KEYWORDS = ["Semantic", "CE"]
 
     # Option D: remove run types containing ANY of these substrings
-    EXCLUDE_KEYWORDS = ["vanilla"]
+    EXCLUDE_KEYWORDS = None # ["vanilla"]
     # Example:
     # EXCLUDE_KEYWORDS = ["debug", "test"]
     NAME_PREFIX = ''
