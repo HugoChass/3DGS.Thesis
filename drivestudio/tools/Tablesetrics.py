@@ -42,15 +42,6 @@ def extract_run_type(folder_name: str):
         return folder_name[:-4]
     return folder_name
 
-def method_key_from_run_type(run_type: str) -> str:
-    """
-    Your method family grouping: first two underscore-separated tokens.
-    Examples:
-      streetgsSemantic_CE_0,01 -> streetgsSemantic_CE
-      streetgsSemantic_Focal_0,001_N2 -> streetgsSemantic_Focal
-      vanilla005 -> vanilla005
-    """
-    return run_type[:-4]
 
 def load_first_metrics_json(run_folder: str):
     """Return dict from first images_full_*.json, else None."""
@@ -107,7 +98,7 @@ for subfolder in os.listdir(MAIN_FOLDER):
 
     scene_number = extract_scene_number(subfolder)
     run_type = extract_run_type(subfolder)
-    method = method_key_from_run_type(run_type)
+    method = run_type
 
     # Load metrics JSON (optional)
     metrics = load_first_metrics_json(run_path)
@@ -140,7 +131,6 @@ for subfolder in os.listdir(MAIN_FOLDER):
         "MIOU": miou,
         "total_run_time_h": total_h,
         "sec_per_iteration": sec_per_it,
-        "run_type_full": run_type,  # helpful extra column (you can remove if you want)
     })
 
 # ==========================
