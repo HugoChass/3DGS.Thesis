@@ -140,14 +140,13 @@ df = pd.DataFrame(rows)
 
 # Sort for readability: by method then scene
 if not df.empty:
-    df = df.sort_values(["method", "scene_number", "run_type_full"], kind="stable")
+    df = df.sort_values(["method", "scene_number"], kind="stable")
 
 # Your requested columns (plus run_type_full at end; remove if you don't want it)
 cols = [
     "method", "scene_number",
     "SSIM", "PSNR", "LPIPS", "MIOU",
     "total_run_time_h", "sec_per_iteration",
-    "run_type_full",
 ]
 df = df[cols]
 
