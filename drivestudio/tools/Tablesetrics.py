@@ -165,7 +165,7 @@ cols = [
 df = df[cols]
 
 df.to_csv(OUT_CSV, index=False)
-df.to_excel(OUT_XLSX, index=False)
+# df.to_excel(OUT_XLSX, index=False)
 
 print(f"Wrote {len(df)} rows")
 print(f"CSV : {OUT_CSV}")
