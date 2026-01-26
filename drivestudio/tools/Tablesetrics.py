@@ -52,7 +52,7 @@ def method_key_from_run_type(run_type: str) -> str:
     """
     parts = run_type.split("_")
     if len(parts) >= 2:
-        return "_".join(parts[:2])
+        return "_".join(parts[:-1])
     return run_type
 
 def load_first_metrics_json(run_folder: str):
