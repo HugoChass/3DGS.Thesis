@@ -51,9 +51,7 @@ def method_key_from_run_type(run_type: str) -> str:
       vanilla005 -> vanilla005
     """
     parts = run_type.split("_")
-    if len(parts) >= 2:
-        return "_".join(parts[:-1])
-    return run_type
+    return "_".join(parts[:-1])
 
 def load_first_metrics_json(run_folder: str):
     """Return dict from first images_full_*.json, else None."""
