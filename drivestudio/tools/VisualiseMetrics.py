@@ -197,6 +197,7 @@ for METRICS in METRICS_LIST:
         if "None" in METHODS:
             pass
         else:
+            print(METHODS)
             INCLUDE_KEYWORDS = METHODS + ["Semantic_Focal_0,001_N2"]
         
 
