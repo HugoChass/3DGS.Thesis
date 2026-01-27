@@ -199,13 +199,13 @@ for METRICS in METRICS_LIST:
         else:
             INCLUDE_KEYWORDS = METHODS + ["Semantic_Focal_0,001_N2"]
         
+        if "miou" not in METRICS:
+            INCLUDE_KEYWORDS += ["vanilla"]
+        
 
         # Option D: remove run types containing ANY of these substrings
         EXCLUDE_KEYWORDS = None
-        if "miou" in METRICS:
-            EXCLUDE_KEYWORDS = ["vanilla"]
-        # Example:
-        # EXCLUDE_KEYWORDS = ["debug", "test"]
+
         NAME_PREFIX = ''
         if "None" not in METHODS:
             for m in METHODS:
