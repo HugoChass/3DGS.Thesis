@@ -201,7 +201,7 @@ for METRICS in METRICS_LIST:
         
         if "miou" not in METRICS:
             INCLUDE_KEYWORDS += ["vanilla"]
-        
+        print(INCLUDE_KEYWORDS)
 
         # Option D: remove run types containing ANY of these substrings
         EXCLUDE_KEYWORDS = None
