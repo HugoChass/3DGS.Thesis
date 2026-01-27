@@ -35,7 +35,7 @@ RUNTIME_METRICS = {
 METHODS_LIST = [["None"],["Semantic_CE", "Semantic_Focal"], ["Semantic_l2", "Semantic_Entropy"]]
 
 for METRICS in METRICS_LIST:
-    for METHODS in METRICS_LIST:
+    for METHODS in METHODS_LIST:
 
         # ==========================
         # HELPER FUNCTIONS
@@ -197,7 +197,6 @@ for METRICS in METRICS_LIST:
         if "None" in METHODS:
             pass
         else:
-            print(METHODS)
             INCLUDE_KEYWORDS = METHODS + ["Semantic_Focal_0,001_N2"]
         
 
