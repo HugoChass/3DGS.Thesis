@@ -193,7 +193,7 @@ for METRICS in METRICS_LIST:
         # EXCLUDE_RUN_TYPES = ["vanilla005"]
 
         # Option C: keep run types containing ANY of these substrings
-        INCLUDE_KEYWORDS = None
+        INCLUDE_KEYWORDS = ["None"]
         if "None" in METHODS:
             pass
         else:
@@ -273,7 +273,6 @@ for METRICS in METRICS_LIST:
             if not run_types_metric:
                 print(f"[WARN] No data for metric: {metric_name}, skipping.")
                 continue
-            print(metric_name, run_types_metric)
             # Compute mean per run type
             means = {rt: float(np.mean(data[rt][metric_name])) for rt in run_types_metric}
 
