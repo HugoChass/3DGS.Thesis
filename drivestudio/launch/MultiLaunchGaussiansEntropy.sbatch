@@ -1,13 +1,13 @@
 #!/bin/bash -l
 #SBATCH --partition=general
 #SBATCH --qos=short
-#SBATCH --time=03:00:00
+#SBATCH --time=04:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-39%5
+#SBATCH --array=0-3%4
 #SBATCH --job-name=streetgsGaussiansEntropy
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -28,7 +28,8 @@ cd /tudelft.net/staff-umbrella/hchassagnette/Workspace
 IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 
 # ---- Define your 10 scene indices here (edit to match what you want) ----
-SCENES=(000 001 002 003 004 005 006 007 008 009)
+# SCENES=(000 001 002 003 004 005 006 007 008 009)
+SCENES = (004)
 CONFIGS=(
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/entropy/streetgsSemantic_Entropy_0.001_Focal_0,001_N2.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/entropy/streetgsSemantic_Entropy_0.0001_Focal_0,001_N2.yaml
