@@ -202,7 +202,7 @@ for METRICS in METRICS_LIST:
 
         # Option D: remove run types containing ANY of these substrings
         EXCLUDE_KEYWORDS = None
-        if "miou" not in METRICS:
+        if "miou" in METRICS:
             EXCLUDE_KEYWORDS = ["Vanilla"]
         # Example:
         # EXCLUDE_KEYWORDS = ["debug", "test"]
