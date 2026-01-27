@@ -42,13 +42,11 @@ def extract_run_type(folder_name: str):
         return folder_name[:-4]
     return folder_name
 
-
 def load_first_metrics_json(run_folder: str):
     """Return dict from first images_full_*.json, else None."""
     metric_files = glob.glob(os.path.join(run_folder, "metrics", "images_full_*.json"))
     if not metric_files:
         return None
-    # if multiple exist, pick the most recent by mtime
     metric_files.sort(key=os.path.getmtime, reverse=True)
     try:
         with open(metric_files[0], "r") as f:
@@ -86,6 +84,71 @@ def parse_runtime_from_logs(run_folder: str):
 
     return None, None
 
+def safe_get_miou(frame_metrics: dict):
+    """
+    Try common locations for mIoU in a per-frame metrics dict.
+    Returns float or None.
+    """
+    if not isinstance(frame_metrics, dict):
+        return None
+    if "miou" in frame_metrics and frame_metrics["miou"] is not None:
+        return frame_metrics["miou"]
+    if "image_metrics/full/miou" in frame_metrics and frame_metrics["image_metrics/full/miou"] is not None:
+        return frame_metrics["image_metrics/full/miou"]
+    # sometimes nested
+    maybe = frame_metrics.get("image_metrics", {})
+    if isinstance(maybe, dict):
+        full = maybe.get("full", {})
+        if isinstance(full, dict) and "miou" in full:
+            return full.get("miou")
+    return None
+
+def load_novel_view_miou(run_folder: str):
+    """
+    Loads videos/novel_30000/front_center_interp_metrics.json and returns
+    the average mIoU across frames, or None if missing/unreadable.
+    """
+    path = os.path.join(run_folder, "videos", "novel_30000", "front_center_interp_metrics.json")
+    if not os.path.exists(path):
+        return None
+
+    try:
+        with open(path, "r") as f:
+            obj = json.load(f)
+    except OSError:
+        return None
+
+    frame_dicts = []
+
+    # Common shapes:
+    # 1) dict: {frame_id: {metrics...}, ...}
+    # 2) list: [{metrics...}, {metrics...}, ...]
+    if isinstance(obj, dict):
+        # If it's a dict-of-frames, values are frames
+        # If it has a "frames" field, use that too.
+        if "frames" in obj and isinstance(obj["frames"], (list, dict)):
+            frames = obj["frames"]
+            if isinstance(frames, list):
+                frame_dicts = frames
+            elif isinstance(frames, dict):
+                frame_dicts = list(frames.values())
+        else:
+            frame_dicts = list(obj.values())
+
+    elif isinstance(obj, list):
+        frame_dicts = obj
+
+    miou_vals = []
+    for fm in frame_dicts:
+        v = safe_get_miou(fm)
+        if v is not None:
+            miou_vals.append(float(v))
+
+    if len(miou_vals) == 0:
+        return None
+
+    return sum(miou_vals) / len(miou_vals)
+
 # ==========================
 # COLLECT ROWS
 # ==========================
@@ -100,7 +163,10 @@ for subfolder in os.listdir(MAIN_FOLDER):
     run_type = extract_run_type(subfolder)
     method = run_type
 
-    # Load metrics JSON (optional)
+    if scene_number is None:
+        continue
+
+    # Load full-view metrics JSON (optional)
     metrics = load_first_metrics_json(run_path)
 
     psnr = ssim = lpips = miou = None
@@ -113,13 +179,11 @@ for subfolder in os.listdir(MAIN_FOLDER):
     # Load runtime (optional)
     total_h, sec_per_it = parse_runtime_from_logs(run_path)
 
-    # If you ONLY want rows that have at least something useful, enforce it here:
-    if scene_number is None:
-        # No scene suffix -> skip (you said runs are 000..009)
-        continue
+    # Load novel-view mIoU (optional)
+    novel_view_miou = load_novel_view_miou(run_path)
 
-    if metrics is None and total_h is None and sec_per_it is None:
-        # Completely empty -> probably failed run folder
+    # Skip totally empty runs
+    if metrics is None and total_h is None and sec_per_it is None and novel_view_miou is None:
         continue
 
     rows.append({
@@ -129,6 +193,7 @@ for subfolder in os.listdir(MAIN_FOLDER):
         "PSNR": psnr,
         "LPIPS": lpips,
         "MIOU": miou,
+        "novel_view_miou": novel_view_miou,
         "total_run_time_h": total_h,
         "sec_per_iteration": sec_per_it,
     })
@@ -138,14 +203,13 @@ for subfolder in os.listdir(MAIN_FOLDER):
 # ==========================
 df = pd.DataFrame(rows)
 
-# Sort for readability: by method then scene
 if not df.empty:
     df = df.sort_values(["method", "scene_number"], kind="stable")
 
-# Your requested columns (plus run_type_full at end; remove if you don't want it)
 cols = [
     "method", "scene_number",
     "SSIM", "PSNR", "LPIPS", "MIOU",
+    "novel_view_miou",
     "total_run_time_h", "sec_per_iteration",
 ]
 df = df[cols]
