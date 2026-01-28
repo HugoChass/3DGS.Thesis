@@ -201,7 +201,7 @@ for METRICS in METRICS_LIST:
             if "Semantic_l2" in METHODS:
                 INCLUDE_KEYWORDS+= ["Semantic_Focal_0,001_N2"]
             if "Semantic_CLIP" in METHODS:
-                INCLUDE_KEYWORDS += ["streetgsSemantic_Entropy_0.0003_Focal_0,001_N2"]
+                INCLUDE_KEYWORDS+= ["streetgsSemantic_Entropy_0.0003_Focal_0,001_N2"]
         
         if "miou" not in METRICS:
             INCLUDE_KEYWORDS += ["vanilla"]
@@ -213,6 +213,7 @@ for METRICS in METRICS_LIST:
         NAME_PREFIX = ''
         if "None" not in METHODS:
             for m in METHODS:
+                print(m)
                 NAME_PREFIX += f"{m.split('_')[1]}_"
 
         # ==========================
