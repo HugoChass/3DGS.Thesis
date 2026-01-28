@@ -32,7 +32,7 @@ RUNTIME_METRICS = {
 }
 
 # METHODS = ['None', "Semantic_CE", "Semantic_CLIP", "Semantic_l2", "Semantic_Entropy", "Semantic_Manual", "Semantic_Inverse", "Semantic_Warmup"]
-METHODS_LIST = [["None"],["Semantic_CE", "Semantic_Focal"], ["Semantic_l2", "Semantic_Entropy"]]
+METHODS_LIST = [["None"],["Semantic_CE", "Semantic_Focal"], ["Semantic_l2", "Semantic_Entropy"], ["Semantic_CLIP"]]
 
 for METRICS in METRICS_LIST:
     for METHODS in METHODS_LIST:
