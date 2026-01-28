@@ -30,8 +30,10 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 # ---- Define your 10 scene indices here (edit to match what you want) ----
 SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,0001_N2.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,0003_N2.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,00001_N2.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,00003_N2.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,0001_N2.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,0003_N2.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,001_N2.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,003_N2.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,01_N2.yaml
