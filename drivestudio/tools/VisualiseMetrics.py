@@ -197,7 +197,11 @@ for METRICS in METRICS_LIST:
         if "None" in METHODS:
             pass
         else:
-            INCLUDE_KEYWORDS = METHODS + ["Semantic_Focal_0,001_N2"]
+            INCLUDE_KEYWORDS = METHODS 
+            if "Semantic_l2" in METHODS:
+                INCLUDE_KEYWORDS+= ["Semantic_Focal_0,001_N2"]
+            if "Semantic_CLIP" in METHODS:
+                INCLUDE_KEYWORDS += ["streetgsSemantic_Entropy_0.0003_Focal_0,001_N2"]
         
         if "miou" not in METRICS:
             INCLUDE_KEYWORDS += ["vanilla"]
