@@ -36,7 +36,6 @@ METHODS_LIST = [["None"],["Semantic_CE", "Semantic_Focal"], ["Semantic_l2", "Sem
 
 for METRICS in METRICS_LIST:
     for METHODS in METHODS_LIST:
-        print(1, METHODS)
 
         # ==========================
         # HELPER FUNCTIONS
@@ -194,28 +193,24 @@ for METRICS in METRICS_LIST:
         # EXCLUDE_RUN_TYPES = ["vanilla005"]
 
         # Option C: keep run types containing ANY of these substrings
-        print(2, METHODS)
         INCLUDE_KEYWORDS = ["None"]
         if "None" in METHODS:
             pass
         else:
-            INCLUDE_KEYWORDS = METHODS 
+            INCLUDE_KEYWORDS = METHODS.copy()
             if "Semantic_l2" in METHODS:
                 INCLUDE_KEYWORDS+= ["Semantic_Focal_0,001_N2"]
             if "Semantic_CLIP" in METHODS:
                 INCLUDE_KEYWORDS+= ["streetgsSemantic_Entropy_0.0003_Focal_0,001_N2"]
-        print(3, METHODS)
         if "miou" not in METRICS:
             INCLUDE_KEYWORDS += ["vanilla"]
-        print(4, INCLUDE_KEYWORDS)
-        print(5, METHODS)
+        
         # Option D: remove run types containing ANY of these substrings
         EXCLUDE_KEYWORDS = None
 
         NAME_PREFIX = ''
         if "None" not in METHODS:
             for m in METHODS:
-                print(6, m)
                 NAME_PREFIX += f"{m.split('_')[1]}_"
 
         # ==========================
