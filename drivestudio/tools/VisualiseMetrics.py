@@ -36,6 +36,7 @@ METHODS_LIST = [["None"],["Semantic_CE", "Semantic_Focal"], ["Semantic_l2", "Sem
 
 for METRICS in METRICS_LIST:
     for METHODS in METHODS_LIST:
+        print(1, METHODS)
 
         # ==========================
         # HELPER FUNCTIONS
@@ -193,6 +194,7 @@ for METRICS in METRICS_LIST:
         # EXCLUDE_RUN_TYPES = ["vanilla005"]
 
         # Option C: keep run types containing ANY of these substrings
+        print(2, METHODS)
         INCLUDE_KEYWORDS = ["None"]
         if "None" in METHODS:
             pass
@@ -205,15 +207,15 @@ for METRICS in METRICS_LIST:
         
         if "miou" not in METRICS:
             INCLUDE_KEYWORDS += ["vanilla"]
-        print(INCLUDE_KEYWORDS)
-
+        print(3, INCLUDE_KEYWORDS)
+        print(4, METHODS)
         # Option D: remove run types containing ANY of these substrings
         EXCLUDE_KEYWORDS = None
 
         NAME_PREFIX = ''
         if "None" not in METHODS:
             for m in METHODS:
-                print(m)
+                print(5, m)
                 NAME_PREFIX += f"{m.split('_')[1]}_"
 
         # ==========================
@@ -258,7 +260,7 @@ for METRICS in METRICS_LIST:
 
         # Sort run types once for consistent plotting
         run_types = sorted(data.keys())
-        print(run_types)
+        # print(run_types)
         # ==========================
         # PLOTTING
         # ==========================
