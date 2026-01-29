@@ -7,7 +7,7 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-3%4
+#SBATCH --array=0-19%3
 #SBATCH --job-name=streetgsGaussiansL2
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -28,13 +28,14 @@ cd /tudelft.net/staff-umbrella/hchassagnette/Workspace
 IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 
 # ---- Define your 10 scene indices here (edit to match what you want) ----
-# SCENES=(000 001 002 003 004 005 006 007 008 009)
-SCENES = (004)
+SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.0001_Focal_0,001_N2.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.00001_Focal_0,001_N2.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.0003_Focal_0,001_N2.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.00003_Focal_0,001_N2.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.000001_Focal_0,001_N2.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.000003_Focal_0,001_N2.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.0001_Focal_0,001_N2.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.00001_Focal_0,001_N2.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.0003_Focal_0,001_N2.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.00003_Focal_0,001_N2.yaml
 )
 
 num_scenes=${#SCENES[@]}
