@@ -680,6 +680,8 @@ class BasicTrainer(nn.Module):
             # class indices including bg
             sem_labels = sem_all.argmax(-1, keepdim=True).to(torch.int32)  # [H,W,1]
 
+            sem_logits = sem_all[:,:,:-1]
+
             results["semantic_logits"] = sem_logits          # blended logits (no bg)
             results["semantic_probs"]  = sem_all             # probs (C+1 incl. bg)
             results["semantic_label"]  = sem_labels          # [H,W,1]
