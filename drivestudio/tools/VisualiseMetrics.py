@@ -193,7 +193,7 @@ for METRICS in METRICS_LIST:
         # EXCLUDE_RUN_TYPES = ["vanilla005"]
 
         # Option C: keep run types containing ANY of these substrings
-        INCLUDE_KEYWORDS = ["None"]
+        INCLUDE_KEYWORDS = None
         if "None" in METHODS:
             pass
         else:
