@@ -198,12 +198,12 @@ for METRICS in METRICS_LIST:
             pass
         else:
             INCLUDE_KEYWORDS = METHODS.copy()
+            if "miou" not in METRICS:
+                INCLUDE_KEYWORDS += ["vanilla"]
             if "Semantic_l2" in METHODS:
                 INCLUDE_KEYWORDS+= ["Semantic_Focal_0,001_N2"]
             if "Semantic_CLIP" in METHODS:
                 INCLUDE_KEYWORDS+= ["streetgsSemantic_Entropy_0.0003_Focal_0,001_N2"]
-        if "miou" not in METRICS:
-            INCLUDE_KEYWORDS += ["vanilla"]
         
         # Option D: remove run types containing ANY of these substrings
         EXCLUDE_KEYWORDS = None
