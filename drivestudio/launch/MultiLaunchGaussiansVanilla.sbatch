@@ -28,7 +28,8 @@ cd /tudelft.net/staff-umbrella/hchassagnette/Workspace
 IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 
 # ---- Define your 10 scene indices here (edit to match what you want) ----
-SCENES=(000 001 002 003 004 005 006 007 008 009)
+# SCENES=(000 001 002 003 004 005 006 007 008 009)
+SCENES = (005)
 CONFIGS=(
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio/configs/streetgs.yaml
 )

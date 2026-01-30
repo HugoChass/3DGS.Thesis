@@ -53,7 +53,7 @@ fi
 # Nice run naming: include config “tag” + scene
 cfg_tag="$(basename "$config_file")"
 cfg_tag="${cfg_tag%.yaml}"               # streetgs, streetgs_ablation, ...
-run_name="$vanillaGaussians_${scene_idx}"       # e.g. streetgs_000
+run_name="vanillaGaussians_${scene_idx}"       # e.g. streetgs_000
 
 echo "task=$task config=$config_file scene=$scene_idx run_name=$run_name"
 
