@@ -7,8 +7,8 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-1%1
-#SBATCH --job-name=streetgsGaussiansVanilla
+#SBATCH --array=0-29%5
+#SBATCH --job-name=streetgsGaussiansWarmup
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
 
@@ -28,10 +28,12 @@ cd /tudelft.net/staff-umbrella/hchassagnette/Workspace
 IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 
 # ---- Define your 10 scene indices here (edit to match what you want) ----
-# SCENES=(000 001 002 003 004 005 006 007 008 009)
-
-SCENES=(005)
-CONFIGS=(/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio/configs/streetgs.yaml)
+SCENES=(000 001 002 003 004 005 006 007 008 009)
+CONFIGS=(
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/warmup/streetgsSemantic_Warmup_0-5_Entropy_0.0003_Focal_0,001.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/warmup/streetgsSemantic_Warmup_10-15_Entropy_0.0003_Focal_0,001.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/warmup/streetgsSemantic_Warmup_20-25_Entropy_0.0003_Focal_0,001.yaml
+)
 
 num_scenes=${#SCENES[@]}
 num_configs=${#CONFIGS[@]}
@@ -53,13 +55,13 @@ fi
 # Nice run naming: include config “tag” + scene
 cfg_tag="$(basename "$config_file")"
 cfg_tag="${cfg_tag%.yaml}"               # streetgs, streetgs_ablation, ...
-run_name="vanilla_${scene_idx}"       # e.g. streetgs_000
+run_name="${cfg_tag}_${scene_idx}"       # e.g. streetgs_000
 
 echo "task=$task config=$config_file scene=$scene_idx run_name=$run_name"
 
 # Run inside the container
 srun apptainer exec --nv "$IMG" bash -lc "
-  cd /tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio
+  cd /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio
   set -euo pipefail
   sleep $(( (SLURM_ARRAY_TASK_ID % 5) * 60 ))
   source /home/miniconda3/bin/activate
@@ -71,7 +73,7 @@ srun apptainer exec --nv "$IMG" bash -lc "
   export CUDA_CACHE_PATH=\$TMPDIR/cuda_cache
   mkdir -p \$XDG_CACHE_HOME \$TORCH_HOME \$CUDA_CACHE_PATH
 
-  export PYTHONPATH=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio
+  export PYTHONPATH=/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio
   python tools/train.py \
     --config_file ${config_file} \
     --output_root /tudelft.net/staff-umbrella/hchassagnette/Workspace/output \
