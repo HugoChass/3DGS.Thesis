@@ -72,7 +72,8 @@ class VanillaGaussians(nn.Module):
         self._opacities = torch.zeros(1, 1, device=self.device)
         self._features_dc = torch.zeros(1, 3, device=self.device)
         self._features_rest = torch.zeros(1, num_sh_bases(self.sh_degree) - 1, 3, device=self.device)
-        self._semantics = torch.zeros(1, 1, device=self.device) # NEW
+        self._semantics = torch.zeros(1, 1, device=self.device)
+        self._semantics_bool = torch.zeros(1, 1, device=self.device) # NEW
         
     @property
     def sh_degree(self):
@@ -114,9 +115,9 @@ class VanillaGaussians(nn.Module):
         self._semantics = Parameter(logits_init)
         #self._semantics = Parameter(init_semantics.float()) # not trainable version of semantics
         if semantic:
-            self._semantic_bool = torch.ones_like(init_means)
+            self._semantics_bool = torch.ones_like(init_means)
         else:
-            self._semantic_bool = torch.zeros_like(init_means)
+            self._semantics_bool = torch.zeros_like(init_means)
     
     def init_semantic_logits(self,
                             hard_labels: torch.Tensor,
@@ -282,7 +283,7 @@ class VanillaGaussians(nn.Module):
                 splits &= high_grads
                 nsamps = self.ctrl_cfg.n_split_samples
 
-                if getattr(self.ctrl_cfg, "use_semantic_split", False) and hasattr(self, "_semantics"):
+                if getattr(self.ctrl_cfg, "use_semantic_split", False) and hasattr(self, "_semantics") and torch.all(self._semantics_bool == 1):
                     _, _, importance = self._compute_semantic_importance_for_densification()
                     if importance is not None and importance.shape[0] == splits.shape[0]:
                         imp_thresh = getattr(self.ctrl_cfg, "semantic_split_importance_thresh", 1.0)
@@ -305,7 +306,7 @@ class VanillaGaussians(nn.Module):
                 ).squeeze()
                 dups &= high_grads
 
-                if getattr(self.ctrl_cfg, "use_semantic_dup", False) and hasattr(self, "_semantics"):
+                if getattr(self.ctrl_cfg, "use_semantic_dup", False) and hasattr(self, "_semantics") and torch.all(self._semantics_bool == 1):
                     _, _, importance = self._compute_semantic_importance_for_densification()
                     if importance is not None and importance.shape[0] == dups.shape[0]:
                         imp_thresh = getattr(self.ctrl_cfg, "semantic_split_importance_thresh", 1.0)
@@ -321,8 +322,8 @@ class VanillaGaussians(nn.Module):
                     dup_quats,
                     dup_semantics, # NEW
                 ) = self.dup_gaussians(dups)
-                
-                self._means = Parameter(torch.cat([self._means.detach(), split_means, dup_means], dim=0))
+                means = torch.cat([self._means.detach(), split_means, dup_means], dim=0)
+                self._means = Parameter(means)
                 # self.colors_all = Parameter(torch.cat([self.colors_all.detach(), split_colors, dup_colors], dim=0))
                 self._features_dc = Parameter(torch.cat([self._features_dc.detach(), split_feature_dc, dup_feature_dc], dim=0))
                 self._features_rest = Parameter(torch.cat([self._features_rest.detach(), split_feature_rest, dup_feature_rest], dim=0))
@@ -330,6 +331,12 @@ class VanillaGaussians(nn.Module):
                 self._scales = Parameter(torch.cat([self._scales.detach(), split_scales, dup_scales], dim=0))
                 self._quats = Parameter(torch.cat([self._quats.detach(), split_quats, dup_quats], dim=0))
                 self._semantics = Parameter(torch.cat([self._semantics.detach(), split_semantics, dup_semantics], dim=0)) # NEW
+
+                if torch.all(self._semantics_bool == 1):
+                    self._semantics_bool = torch.ones_like(means)
+                else:
+                    self._semantics_bool = torch.zeros_like(means)
+
                 
                 # append zeros to the max_2Dsize tensor
                 self.max_2Dsize = torch.cat(
@@ -477,13 +484,19 @@ class VanillaGaussians(nn.Module):
                     )
 
         # Apply culling
-        self._means       = Parameter(self._means[~culls].detach())
+        means = self._means[~culls].detach()
+        self._means       = Parameter(means)
         self._scales      = Parameter(self._scales[~culls].detach())
         self._quats       = Parameter(self._quats[~culls].detach())
         self._features_dc = Parameter(self._features_dc[~culls].detach())
         self._features_rest = Parameter(self._features_rest[~culls].detach())
         self._opacities   = Parameter(self._opacities[~culls].detach())
         self._semantics   = Parameter(self._semantics[~culls].detach())
+
+        if torch.all(self._semantics_bool == 1):
+            self._semantics_bool = torch.ones_like(means)
+        else:
+            self._semantics_bool = torch.zeros_like(means)
 
         print(f"     Cull: {n_bef - self.num_points}")
         return culls
@@ -569,7 +582,8 @@ class VanillaGaussians(nn.Module):
             _rgbs=actovated_colors[filter_mask],
             _scales=activated_scales[filter_mask],
             _quats=activated_rotations[filter_mask],
-            _semantics=self._semantics[filter_mask] # NEW
+            _semantics=self._semantics[filter_mask], # NEW
+            _semantics_bool=self._semantics_bool[filter_mask]
         )
         
         # check nan and inf in gs_dict
