@@ -127,6 +127,7 @@ class dataclass_gs:
     detach_keys: List[str]
     extras: Optional[Dict[str, torch.Tensor]] = None
     _semantics: torch.Tensor = None
+    _semantics_bool: torch.Tensor = None
     def set_grad_controller(self, detach_keys):
         self.detach_keys = detach_keys
     @property
@@ -165,6 +166,12 @@ class dataclass_gs:
             return self._semantics.detach()
         else:
             return self._semantics
+    @property
+    def semantics_bool(self):
+        if "semantics" in self.detach_keys:
+            return self._semantics_bool.detach()
+        else:
+            return self._semantics_bool
 
 
 def remove_from_optim(optimizer, deleted_mask, param_dict):

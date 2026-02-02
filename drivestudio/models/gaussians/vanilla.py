@@ -78,7 +78,7 @@ class VanillaGaussians(nn.Module):
     def sh_degree(self):
         return self.ctrl_cfg.sh_degree
 
-    def create_from_pcd(self, init_means: torch.Tensor, init_colors: torch.Tensor, init_semantics: torch.Tensor) -> None:
+    def create_from_pcd(self, init_means: torch.Tensor, init_colors: torch.Tensor, init_semantics: torch.Tensor, semantic=False) -> None:
         self._means = Parameter(init_means)
         
         distances, _ = k_nearest_sklearn(self._means.data, 3)
@@ -113,6 +113,10 @@ class VanillaGaussians(nn.Module):
         )
         self._semantics = Parameter(logits_init)
         #self._semantics = Parameter(init_semantics.float()) # not trainable version of semantics
+        if semantic:
+            self._semantic_bool = torch.ones_like(init_means)
+        else:
+            self._semantic_bool = torch.zeros_like(init_means)
     
     def init_semantic_logits(self,
                             hard_labels: torch.Tensor,

@@ -60,6 +60,11 @@ class MultiTrainer(BasicTrainer):
             self.gaussian_classes["SMPLNodes"] = GSModelType.SMPLNodes
         if "DeformableNodes" in self.model_config:
             self.gaussian_classes["DeformableNodes"] = GSModelType.DeformableNodes
+
+        if "SemanticBackground" in self.model_config:
+            self.gaussian_classes["SemanticBackground"] = GSModelType.SemanticBackground
+        if "SemanticRigidNodes" in self.model_config:
+            self.gaussian_classes["SemanticRigidNodes"] = GSModelType.SemanticRigidNodes
            
         for class_name, model_cfg in self.model_config.items():
             # update model config for gaussian classes
@@ -101,11 +106,13 @@ class MultiTrainer(BasicTrainer):
     def safe_init_models(
         self,
         model: torch.nn.Module,
-        instance_pts_dict: Dict[str, Dict[str, torch.Tensor]]
+        instance_pts_dict: Dict[str, Dict[str, torch.Tensor]],
+        Semantic=False
     ) -> None:
         if len(instance_pts_dict.keys()) > 0:
             model.create_from_pcd(
-                instance_pts_dict=instance_pts_dict
+                instance_pts_dict=instance_pts_dict,
+                semantic=Semantic
             )
             return False
         else:
@@ -196,6 +203,61 @@ class MultiTrainer(BasicTrainer):
                 empty = self.safe_init_models(
                     model=model,
                     instance_pts_dict=rigidnode_pts_dict
+                )
+
+            # SEMANTIC CASE
+
+            if class_name == 'SemanticBackground':                
+                # ------ initialize gaussians ------
+                init_cfg = model_cfg.pop('init')
+                # sample points from the lidar point clouds
+                if init_cfg.get("from_lidar", None) is not None:
+                    sampled_pts, sampled_color, sampled_time, sampled_semantics = dataset.get_lidar_samples(
+                        **init_cfg.from_lidar, device=self.device
+                    )
+                else:
+                    sampled_pts, sampled_color, sampled_time, sampled_semantics = \
+                        torch.empty(0, 3).to(self.device), torch.empty(0, 3).to(self.device), None, None
+                
+                random_pts = []
+                num_near_pts = init_cfg.get('near_randoms', 0)
+                if num_near_pts > 0: # uniformly sample points inside the scene's sphere
+                    num_near_pts *= 3 # since some invisible points will be filtered out
+                    random_pts.append(uniform_sample_sphere(num_near_pts, self.device))
+                num_far_pts = init_cfg.get('far_randoms', 0)
+                if num_far_pts > 0: # inverse distances uniformly from (0, 1 / scene_radius)
+                    num_far_pts *= 3
+                    random_pts.append(uniform_sample_sphere(num_far_pts, self.device, inverse=True))
+                
+                if num_near_pts + num_far_pts > 0:
+                    random_pts = torch.cat(random_pts, dim=0) 
+                    random_pts = random_pts * self.scene_radius + self.scene_origin
+                    visible_mask = dataset.check_pts_visibility(random_pts)
+                    valid_pts = random_pts[visible_mask]
+                    
+                    random_labels = torch.full((valid_pts.shape[0],), 17, dtype=torch.long, device=self.device)
+                    logger.info(f'number of sampled lidar:{len(sampled_semantics)}')
+                    logger.info(f'number of random points:{len(valid_pts)}')
+                    sampled_pts = torch.cat([sampled_pts, valid_pts], dim=0)
+                    sampled_color = torch.cat([sampled_color, torch.rand(valid_pts.shape, ).to(self.device)], dim=0)
+                    sampled_semantics = torch.cat([sampled_semantics, random_labels], dim=0)
+                
+                processed_init_pts = dataset.filter_pts_in_boxes(
+                    seed_pts=sampled_pts,
+                    seed_colors=sampled_color,
+                    valid_instances_dict=allnode_pts_dict,
+                    seed_semantics=sampled_semantics
+                )
+                
+                model.create_from_pcd(
+                    init_means=processed_init_pts["pts"], init_colors=processed_init_pts["colors"], init_semantics=processed_init_pts["semantics"], semantic=True
+                )
+                
+            if class_name == 'SemanticRigidNodes':
+                empty = self.safe_init_models(
+                    model=model,
+                    instance_pts_dict=rigidnode_pts_dict,
+                    Semantic=True
                 )
                 
             if class_name == 'DeformableNodes':

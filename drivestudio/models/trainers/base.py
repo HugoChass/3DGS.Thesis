@@ -52,6 +52,8 @@ class GSModelType(IntEnum):
     RigidNodes = 1
     SMPLNodes = 2
     DeformableNodes = 3
+    SemanticBackground = 4
+    SemanticRigidNodes = 5
 
 def lr_scheduler_fn(
     cfg: OmegaConf,
@@ -393,6 +395,7 @@ class BasicTrainer(nn.Module):
             "_opacities": [],
             "class_labels": [],
             "_semantics": [],
+            "_semantics_bool": [],
         }
         for class_name in self.gaussian_classes.keys():
             gs = self.models[class_name].get_gaussians(cam)
@@ -419,6 +422,7 @@ class BasicTrainer(nn.Module):
             _rgbs=gs_dict["_rgbs"],
             _opacities=gs_dict["_opacities"],
             _semantics=gs_dict["_semantics"],
+            _semantics_bool=gs_dict["_semantics_bool"],
             detach_keys=[],    # if "means" in detach_keys, then the means will be detached
             extras=None        # to save some extra information (TODO) more flexible way
         )
@@ -741,7 +745,10 @@ class BasicTrainer(nn.Module):
         C = gs.semantics.shape[-1]  # num semantic classes (no bg)
 
         def render_fn(opacity_mask=None, return_info=False):
-            opacities = gs.opacities.squeeze()
+
+            gs_rgb = gs[gs.semantics_bool == 0]
+
+            opacities = gs_rgb.opacities.squeeze()
             if opacity_mask is not None:
                 opacities = opacities * opacity_mask
 
@@ -749,11 +756,11 @@ class BasicTrainer(nn.Module):
             # Pass 1: RGB (+ depth)
             # -------------------------
             renders_rgb, alphas_rgb, info_rgb = rasterization(
-                means=gs.means,
-                quats=gs.quats,
-                scales=gs.scales,
+                means=gs_rgb.means,
+                quats=gs_rgb.quats,
+                scales=gs_rgb.scales,
                 opacities=opacities,
-                colors=gs.rgbs,  # [N, 3]
+                colors=gs_rgb.rgbs,  # [N, 3]
                 viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],
                 Ks=cam.Ks[None, ...],
                 width=cam.W,
@@ -777,12 +784,15 @@ class BasicTrainer(nn.Module):
             # Pass 2: Semantics (+ depth)
             # -------------------------
             # Render semantic logits as "colors" (features). Keep dtype aligned.
-            sem_colors = torch.softmax(gs.semantics, dim=-1)  # [N,C]
+
+            gs_sem = gs[gs.semantics_bool == 1]
+
+            sem_colors = torch.softmax(gs_sem.semantics, dim=-1)  # [N,C]
 
             renders_sem, alphas_sem, info_sem = rasterization(
-                means=gs.means,
-                quats=gs.quats,
-                scales=gs.scales,
+                means=gs_sem.means,
+                quats=gs_sem.quats,
+                scales=gs_sem.scales,
                 opacities=opacities,
                 colors=sem_colors,  # [N, C]
                 viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],

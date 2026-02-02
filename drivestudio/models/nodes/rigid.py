@@ -37,7 +37,7 @@ class RigidNodes(VanillaGaussians):
     def register_normalized_timestamps(self, normalized_timestamps: int):
         self.normalized_timestamps = normalized_timestamps
         
-    def create_from_pcd(self, instance_pts_dict: Dict[str, torch.Tensor]) -> None:
+    def create_from_pcd(self, instance_pts_dict: Dict[str, torch.Tensor], semantic=False) -> None:
         """
         instance_pts_dict: {
             id in dataset: {
@@ -110,6 +110,11 @@ class RigidNodes(VanillaGaussians):
         self._features_dc = Parameter(shs[:, 0, :])
         self._features_rest = Parameter(shs[:, 1:, :])
         self._opacities = Parameter(torch.logit(0.1 * torch.ones(self.num_points, 1, device=self.device)))
+
+        if semantic:
+            self._semantic_bool = torch.ones_like(init_means)
+        else:
+            self._semantic_bool = torch.zeros_like(init_means)
 
     def init_semantic_logits(self,
                             hard_labels: torch.Tensor,
