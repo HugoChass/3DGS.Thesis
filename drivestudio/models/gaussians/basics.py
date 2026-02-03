@@ -172,6 +172,20 @@ class dataclass_gs:
             return self._semantics_bool.detach()
         else:
             return self._semantics_bool
+    
+    def masked(self, mask: torch.Tensor):
+        """Return a new dataclass_gs with all per-gaussian tensors masked on dim 0."""
+        out = {}
+        for f in fields(self):
+            v = getattr(self, f.name)
+
+            # Only mask tensors that look like they are per-Gaussian (dim0 == N)
+            if torch.is_tensor(v) and v.ndim >= 1 and v.shape[0] == mask.shape[0]:
+                out[f.name] = v[mask]
+            else:
+                out[f.name] = v
+
+        return type(self)(**out)
 
 
 def remove_from_optim(optimizer, deleted_mask, param_dict):
