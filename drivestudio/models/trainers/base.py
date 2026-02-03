@@ -791,6 +791,8 @@ class BasicTrainer(nn.Module):
 
             sem_colors = torch.softmax(gs_sem.semantics, dim=-1)  # [N,C]
 
+            opacities = gs_sem.opacities.squeeze()
+
             renders_sem, alphas_sem, info_sem = rasterization(
                 means=gs_sem.means,
                 quats=gs_sem.quats,
