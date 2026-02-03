@@ -29,7 +29,7 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 
 # ---- Define your 10 scene indices here (edit to match what you want) ----
 # SCENES=(000 001 002 003 004 005 006 007 008 009)
-SCENES = (000)
+SCENES=(000)
 CONFIGS=(
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_CE_0.001_Entropy_0.0003.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_CE_0.001.yaml
