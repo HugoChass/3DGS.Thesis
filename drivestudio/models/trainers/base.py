@@ -320,42 +320,96 @@ class BasicTrainer(nn.Module):
             self.tic = time.time()
         
     def postprocess_per_train_step(self, step: int) -> None:
-        radii = self.info["radii"]
+        info_rgb = self.info["rgb"]
+        info_sem = self.info["sem"]
+
+        idx_rgb = self.info["idx_rgb"]  # LongTensor [N_rgb] global indices
+        idx_sem = self.info["idx_sem"]  # LongTensor [N_sem] global indices
+
+        # width/height might be stored in the top-level dict or inside info_rgb
+        width  = self.info.get("width",  info_rgb.get("width"))
+        height = self.info.get("height", info_rgb.get("height"))
+
+        # --- grads (per-pass) ---
         if self.render_cfg.absgrad:
-            grads = self.info["means2d"].absgrad.clone()
+            grads_rgb = info_rgb["means2d"].absgrad.clone()
+            grads_sem = info_sem["means2d"].absgrad.clone()
         else:
-            grads = self.info["means2d"].grad.clone()
-        grads[..., 0] *= self.info["width"] / 2.0 * self.render_cfg.batch_size
-        grads[..., 1] *= self.info["height"] / 2.0 * self.render_cfg.batch_size
-        
-        for class_name in self.gaussian_classes.keys():
-            gaussian_mask = self.pts_labels == self.gaussian_classes[class_name]
-            
-            self.models[class_name].postprocess_per_train_step(
-                step=step,
-                optimizer=self.optimizer,
-                radii=radii[0, gaussian_mask],
-                xys_grad=grads[0, gaussian_mask],
-                last_size=max(self.info["width"], self.info["height"])
-            )
-        
-        # viewer
+            # Only valid if you called retain_grad() on the actual means2d tensors
+            grads_rgb = info_rgb["means2d"].grad.clone()
+            grads_sem = info_sem["means2d"].grad.clone()
+
+        # scale grads like before (keep shapes [1, N_pass, 2])
+        grads_rgb[..., 0] *= width / 2.0 * self.render_cfg.batch_size
+        grads_rgb[..., 1] *= height / 2.0 * self.render_cfg.batch_size
+        grads_sem[..., 0] *= width / 2.0 * self.render_cfg.batch_size
+        grads_sem[..., 1] *= height / 2.0 * self.render_cfg.batch_size
+
+        radii_rgb = info_rgb["radii"]  # [1, N_rgb]
+        radii_sem = info_sem["radii"]  # [1, N_sem]
+
+        # labels in local spaces
+        labels_rgb = self.pts_labels[idx_rgb]  # [N_rgb]
+        labels_sem = self.pts_labels[idx_sem]  # [N_sem]
+
+        last_size = max(width, height)
+
+        for class_name, class_id in self.gaussian_classes.items():
+            if "Semantic" not in class_name:
+                # Non-semantic classes use RGB pass info
+                local_mask = (labels_rgb == class_id)  # [N_rgb]
+                self.models[class_name].postprocess_per_train_step(
+                    step=step,
+                    optimizer=self.optimizer,
+                    radii=radii_rgb[0, local_mask],
+                    xys_grad=grads_rgb[0, local_mask],
+                    last_size=last_size,
+                )
+            else:
+                # Semantic classes use SEM pass info
+                local_mask = (labels_sem == class_id)  # [N_sem]
+                self.models[class_name].postprocess_per_train_step(
+                    step=step,
+                    optimizer=self.optimizer,
+                    radii=radii_sem[0, local_mask],
+                    xys_grad=grads_sem[0, local_mask],
+                    last_size=last_size,
+                )
+
+        # viewer (unchanged)
         if self.viewer is not None:
-            num_train_rays_per_step = self.render_cfg.batch_size * self.info["width"] * self.info["height"]
+            num_train_rays_per_step = self.render_cfg.batch_size * width * height
             self.viewer.lock.release()
             num_train_steps_per_sec = 1.0 / (time.time() - self.tic)
-            num_train_rays_per_sec = (
-                num_train_rays_per_step * num_train_steps_per_sec
-            )
-            # Update the viewer state.
+            num_train_rays_per_sec = num_train_rays_per_step * num_train_steps_per_sec
             self.viewer.state.num_train_rays_per_sec = num_train_rays_per_sec
-            # Update the scene.
             self.viewer.update(step, num_train_rays_per_step)
+
     
     def update_visibility_filter(self) -> None:
+        # these must be stored from render_fn each step
+        idx_rgb = self.info["idx_rgb"]   # LongTensor [N_rgb] global ids
+        idx_sem = self.info["idx_sem"]   # LongTensor [N_sem] global ids
+
+        labels_rgb = self.pts_labels[idx_rgb]  # [N_rgb]
+        labels_sem = self.pts_labels[idx_sem]  # [N_sem]
+
+        info_rgb = self.info["rgb"]
+        info_sem = self.info["sem"]
+
         for class_name in self.gaussian_classes.keys():
-            gaussian_mask = self.pts_labels == self.gaussian_classes[class_name]
-            self.models[class_name].cur_radii = self.info["radii"][0, gaussian_mask]
+            class_id = self.gaussian_classes[class_name]
+
+            if "Semantic" not in class_name:
+                # local mask within rgb pass
+                local_mask = (labels_rgb == class_id)   # [N_rgb]
+                self.models[class_name].cur_radii = info_rgb["radii"][0, local_mask]
+
+            else:
+                # local mask within sem pass
+                local_mask = (labels_sem == class_id)   # [N_sem]
+                self.models[class_name].cur_radii = info_sem["radii"][0, local_mask]
+
 
     def process_camera(
         self,
@@ -743,79 +797,6 @@ class BasicTrainer(nn.Module):
         # Get semantic size
         assert hasattr(gs, "semantics"), "gs.semantics must exist"
         C = gs.semantics.shape[-1]  # num semantic classes (no bg)
-
-        def _scatter_info_to_global(info_sub: dict, mask: torch.Tensor, N: int) -> dict:
-            """
-            Scatter subset-sized rasterizer info dict to global size N.
-            Preserves tensor side-attributes like `.absgrad` if present.
-            """
-            out = {}
-            M = int(mask.sum().item())
-
-            for k, v in info_sub.items():
-                if not torch.is_tensor(v):
-                    out[k] = v
-                    continue
-
-                # Helper: scatter a tensor shaped either [1,M,...] or [M,...]
-                def scatter_tensor(t: torch.Tensor) -> torch.Tensor:
-                    if t.ndim >= 2 and t.shape[0] == 1 and t.shape[1] == M:
-                        full_t = t.new_zeros((1, N, *t.shape[2:]))
-                        full_t[0, mask] = t[0]
-                        return full_t
-                    elif t.ndim >= 1 and t.shape[0] == M:
-                        full_t = t.new_zeros((N, *t.shape[1:]))
-                        full_t[mask] = t
-                        return full_t
-                    else:
-                        return t  # not per-gaussian
-
-                full = scatter_tensor(v)
-
-                # Preserve absgrad if rasterizer attached it
-                if hasattr(v, "absgrad") and torch.is_tensor(v.absgrad):
-                    full_absgrad = scatter_tensor(v.absgrad)
-                    # attach attribute back to the scattered tensor
-                    full.absgrad = full_absgrad
-
-                out[k] = full
-
-            return out
-
-        def _merge_infos_global(info_a: dict, info_b: dict) -> dict:
-            out = {}
-            keys = set(info_a.keys()) | set(info_b.keys())
-
-            for k in keys:
-                a = info_a.get(k, None)
-                b = info_b.get(k, None)
-
-                if a is None:
-                    out[k] = b
-                    continue
-                if b is None:
-                    out[k] = a
-                    continue
-
-                if torch.is_tensor(a) and torch.is_tensor(b) and a.shape == b.shape:
-                    merged = a + b  # disjoint masks -> combines cleanly
-
-                    # merge absgrad if present on either
-                    a_has = hasattr(a, "absgrad") and torch.is_tensor(a.absgrad)
-                    b_has = hasattr(b, "absgrad") and torch.is_tensor(b.absgrad)
-                    if a_has or b_has:
-                        a_ag = a.absgrad if a_has else torch.zeros_like(a)
-                        b_ag = b.absgrad if b_has else torch.zeros_like(b)
-                        merged.absgrad = a_ag + b_ag
-
-                    out[k] = merged
-                else:
-                    # fallback: prefer a
-                    out[k] = a
-
-            return out
-
-
         def render_fn(opacity_mask=None, return_info=False):
 
             mask_rgb = (gs.semantics_bool == 0).all(dim=1)
@@ -892,15 +873,11 @@ class BasicTrainer(nn.Module):
             # For background prob, prefer RGB alpha (ties bg mass to the appearance compositing)
             opacity = alpha_rgb[..., None]          # [H, W, 1]
 
+            idx_rgb = mask_rgb.nonzero(as_tuple=False).squeeze(1)  # [N_rgb]
+            idx_sem = mask_sem.nonzero(as_tuple=False).squeeze(1)  # [N_sem]
+
             if return_info:
-                N = gs.means.shape[0]  # total gaussians
-
-                info_rgb_g = _scatter_info_to_global(info_rgb, mask_rgb, N)
-                info_sem_g = _scatter_info_to_global(info_sem, mask_sem, N)
-
-                info_global = _merge_infos_global(info_rgb_g, info_sem_g)
-
-                return rgb, depth, opacity, sem_logits, info_global
+                return rgb, depth, opacity, sem_logits, {"rgb": info_rgb, "sem": info_sem, "idx_rgb": idx_rgb, "idx_sem": idx_sem}
             else:
                 return rgb, depth, opacity, sem_logits
 
@@ -984,7 +961,8 @@ class BasicTrainer(nn.Module):
 
         if self.training:
             # Keep behavior same as before (info from RGB pass)
-            self.info["means2d"].retain_grad()
+            self.info["rgb"]["means2d"].retain_grad()
+            self.info["sem"]["means2d"].retain_grad()
 
         return results, render_fn
 
