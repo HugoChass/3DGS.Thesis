@@ -746,7 +746,7 @@ class BasicTrainer(nn.Module):
 
         def render_fn(opacity_mask=None, return_info=False):
 
-            mask_rgb = (gs.semantics_bool == 0)
+            mask_rgb = (gs.semantics_bool == 0).all(dim=1)
             gs_rgb = gs.masked(mask_rgb)
 
             opacities = gs_rgb.opacities.squeeze()
@@ -786,7 +786,7 @@ class BasicTrainer(nn.Module):
             # -------------------------
             # Render semantic logits as "colors" (features). Keep dtype aligned.
 
-            mask_sem = (gs.semantics_bool == 1)
+            mask_sem = (gs.semantics_bool == 1).all(dim=1)
             gs_sem = gs.masked(mask_sem)
 
             sem_colors = torch.softmax(gs_sem.semantics, dim=-1)  # [N,C]
