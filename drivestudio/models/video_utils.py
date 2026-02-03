@@ -110,7 +110,7 @@ def render(
     """
     # rgbs
     rgbs, gt_rgbs, rgb_sky_blend, rgb_sky = [], [], [], []
-    Background_rgbs, RigidNodes_rgbs, DeformableNodes_rgbs, SMPLNodes_rgbs, Dynamic_rgbs = [], [], [], [], []
+    Background_rgbs, RigidNodes_rgbs, SemanticBackground_rgbs, SemanticRigidNodes_rgbs, DeformableNodes_rgbs, SMPLNodes_rgbs, Dynamic_rgbs = [], [], [], [], [], [], []
     error_maps = []
 
     # depths
@@ -183,6 +183,16 @@ def render(
                     "RigidNodes_opacity"
                 ] + green_background * (1 - results["RigidNodes_opacity"])
                 RigidNodes_rgbs.append(get_numpy(RigidNodes_rgb))
+            if "SemanticBackground_rgb" in results:
+                SemanticBackground_rgb = results["SemanticBackground_rgb"] * results[
+                    "SemanticBackground_opacity"
+                ] + green_background * (1 - results["SemanticBackground_opacity"])
+                SemanticBackground_rgbs.append(get_numpy(SemanticBackground_rgb))
+            if "SemanticRigidNodes_rgb" in results:
+                SemanticRigidNodes_rgb = results["SemanticRigidNodes_rgb"] * results[
+                    "SemanticRigidNodes_opacity"
+                ] + green_background * (1 - results["SemanticRigidNodes_opacity"])
+                SemanticRigidNodes_rgbs.append(get_numpy(SemanticRigidNodes_rgb))
             if "DeformableNodes_rgb" in results:
                 DeformableNodes_rgb = results["DeformableNodes_rgb"] * results[
                     "DeformableNodes_opacity"
@@ -409,6 +419,10 @@ def render(
         results_dict["Background_rgbs"] = Background_rgbs
     if len(RigidNodes_rgbs) > 0:
         results_dict["RigidNodes_rgbs"] = RigidNodes_rgbs
+    if len(SemanticBackground_rgbs) > 0:
+        results_dict["SemanticBackground_rgbs"] = SemanticBackground_rgbs
+    if len(SemanticRigidNodes_rgbs) > 0:
+        results_dict["SemanticRigidNodes_rgbs"] = SemanticRigidNodes_rgbs
     if len(DeformableNodes_rgbs) > 0:
         results_dict["DeformableNodes_rgbs"] = DeformableNodes_rgbs
     if len(SMPLNodes_rgbs) > 0:
