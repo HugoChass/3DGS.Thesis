@@ -744,6 +744,52 @@ class BasicTrainer(nn.Module):
         assert hasattr(gs, "semantics"), "gs.semantics must exist"
         C = gs.semantics.shape[-1]  # num semantic classes (no bg)
 
+        def _scatter_info_to_global(info_sub: dict, mask: torch.Tensor, N: int) -> dict:
+            """
+            info_sub: info dict from rasterization for a subset (len = mask.sum()).
+            mask: [N] boolean mask in global gs space selecting that subset.
+            N: total #gaussians (len(gs)).
+            Returns: dict with same keys, but tensors scattered to global length where applicable.
+            """
+            out = {}
+            M = int(mask.sum().item())
+
+            for k, v in info_sub.items():
+                if not torch.is_tensor(v):
+                    out[k] = v
+                    continue
+
+                # Most rasterizer infos look like [1, M, ...] or [M, ...]
+                if v.ndim >= 2 and v.shape[0] == 1 and v.shape[1] == M:
+                    full = v.new_zeros((1, N, *v.shape[2:]))
+                    full[0, mask] = v[0]
+                    out[k] = full
+                elif v.ndim >= 1 and v.shape[0] == M:
+                    full = v.new_zeros((N, *v.shape[1:]))
+                    full[mask] = v
+                    out[k] = full
+                else:
+                    # not per-gaussian (camera params, scalars, etc.)
+                    out[k] = v
+
+            return out
+
+
+        def _merge_infos_global(info_a: dict, info_b: dict) -> dict:
+            """
+            Merge two global-scattered info dicts. For tensor keys, prefer non-zero entries from b
+            when a is zero (or just overwrite — masks are disjoint so overwrite is fine).
+            """
+            out = dict(info_a)
+            for k, v in info_b.items():
+                if k not in out:
+                    out[k] = v
+                else:
+                    # masks should be disjoint; overwrite is safe and simplest
+                    out[k] = v
+            return out
+
+
         def render_fn(opacity_mask=None, return_info=False):
 
             mask_rgb = (gs.semantics_bool == 0).all(dim=1)
@@ -820,30 +866,25 @@ class BasicTrainer(nn.Module):
             # For background prob, prefer RGB alpha (ties bg mass to the appearance compositing)
             opacity = alpha_rgb[..., None]          # [H, W, 1]
 
-            if not return_info:
-                return rgb, depth, opacity, sem_logits
+            if return_info:
+                N = gs.means.shape[0]  # total gaussians
+
+                info_rgb_g = _scatter_info_to_global(info_rgb, mask_rgb, N)
+                info_sem_g = _scatter_info_to_global(info_sem, mask_sem, N)
+
+                info_global = _merge_infos_global(info_rgb_g, info_sem_g)
+
+                return rgb, depth, opacity, sem_logits, info_global
             else:
-                # Return both infos if you want to debug later; keep RGB as primary for training
-                return rgb, depth, opacity, sem_logits, {"rgb": info_rgb, "sem": info_sem}
+                return rgb, depth, opacity, sem_logits
 
         # main call
-        rgb, depth, opacity, sem_logits, info_dict = render_fn(return_info=True)
+        rgb, depth, opacity, sem_logits, info = render_fn(return_info=True)
         # Keep self.info compatible with your existing code (expects "means2d" etc.)
         # Use RGB info as the primary (so gradients/retains behave as before).
-        def _merge_infos_global(info_a: dict, info_b: dict) -> dict:
-            """
-            Merge two global-scattered info dicts. For tensor keys, prefer non-zero entries from b
-            when a is zero (or just overwrite — masks are disjoint so overwrite is fine).
-            """
-            out = dict(info_a)
-            for k, v in info_b.items():
-                if k not in out:
-                    out[k] = v
-                else:
-                    # masks should be disjoint; overwrite is safe and simplest
-                    out[k] = v
-            return out
-        self.info = _merge_infos_global(info_dict["rgb"], info_dict["sem"])
+
+
+        self.info = info
 
         results = {
             "rgb_gaussians": rgb,
