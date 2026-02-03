@@ -776,17 +776,24 @@ class BasicTrainer(nn.Module):
 
 
         def _merge_infos_global(info_a: dict, info_b: dict) -> dict:
-            """
-            Merge two global-scattered info dicts. For tensor keys, prefer non-zero entries from b
-            when a is zero (or just overwrite — masks are disjoint so overwrite is fine).
-            """
-            out = dict(info_a)
-            for k, v in info_b.items():
-                if k not in out:
-                    out[k] = v
+            out = {}
+
+            keys = set(info_a.keys()) | set(info_b.keys())
+            for k in keys:
+                a = info_a.get(k, None)
+                b = info_b.get(k, None)
+
+                if a is None:
+                    out[k] = b
+                elif b is None:
+                    out[k] = a
+                elif torch.is_tensor(a) and torch.is_tensor(b) and a.shape == b.shape:
+                    # disjoint masks -> adding combines them
+                    out[k] = a + b
                 else:
-                    # masks should be disjoint; overwrite is safe and simplest
-                    out[k] = v
+                    # non-tensor or shape mismatch: prefer a (or choose one policy)
+                    out[k] = a
+
             return out
 
 
