@@ -750,6 +750,7 @@ class BasicTrainer(nn.Module):
             gs_rgb = gs.masked(mask_rgb)
 
             opacities = gs_rgb.opacities.squeeze()
+            opacity_mask = opacity_mask[mask_rgb]
             if opacity_mask is not None:
                 opacities = opacities * opacity_mask
 
