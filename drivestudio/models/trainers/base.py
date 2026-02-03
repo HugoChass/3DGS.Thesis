@@ -830,7 +830,20 @@ class BasicTrainer(nn.Module):
         rgb, depth, opacity, sem_logits, info_dict = render_fn(return_info=True)
         # Keep self.info compatible with your existing code (expects "means2d" etc.)
         # Use RGB info as the primary (so gradients/retains behave as before).
-        self.info = info_dict["rgb"]
+        def _merge_infos_global(info_a: dict, info_b: dict) -> dict:
+            """
+            Merge two global-scattered info dicts. For tensor keys, prefer non-zero entries from b
+            when a is zero (or just overwrite — masks are disjoint so overwrite is fine).
+            """
+            out = dict(info_a)
+            for k, v in info_b.items():
+                if k not in out:
+                    out[k] = v
+                else:
+                    # masks should be disjoint; overwrite is safe and simplest
+                    out[k] = v
+            return out
+        self.info = _merge_infos_global(info_dict["rgb"], info_dict["sem"])
 
         results = {
             "rgb_gaussians": rgb,
