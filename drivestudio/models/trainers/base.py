@@ -746,10 +746,8 @@ class BasicTrainer(nn.Module):
 
         def _scatter_info_to_global(info_sub: dict, mask: torch.Tensor, N: int) -> dict:
             """
-            info_sub: info dict from rasterization for a subset (len = mask.sum()).
-            mask: [N] boolean mask in global gs space selecting that subset.
-            N: total #gaussians (len(gs)).
-            Returns: dict with same keys, but tensors scattered to global length where applicable.
+            Scatter subset-sized rasterizer info dict to global size N.
+            Preserves tensor side-attributes like `.absgrad` if present.
             """
             out = {}
             M = int(mask.sum().item())
@@ -759,39 +757,60 @@ class BasicTrainer(nn.Module):
                     out[k] = v
                     continue
 
-                # Most rasterizer infos look like [1, M, ...] or [M, ...]
-                if v.ndim >= 2 and v.shape[0] == 1 and v.shape[1] == M:
-                    full = v.new_zeros((1, N, *v.shape[2:]))
-                    full[0, mask] = v[0]
-                    out[k] = full
-                elif v.ndim >= 1 and v.shape[0] == M:
-                    full = v.new_zeros((N, *v.shape[1:]))
-                    full[mask] = v
-                    out[k] = full
-                else:
-                    # not per-gaussian (camera params, scalars, etc.)
-                    out[k] = v
+                # Helper: scatter a tensor shaped either [1,M,...] or [M,...]
+                def scatter_tensor(t: torch.Tensor) -> torch.Tensor:
+                    if t.ndim >= 2 and t.shape[0] == 1 and t.shape[1] == M:
+                        full_t = t.new_zeros((1, N, *t.shape[2:]))
+                        full_t[0, mask] = t[0]
+                        return full_t
+                    elif t.ndim >= 1 and t.shape[0] == M:
+                        full_t = t.new_zeros((N, *t.shape[1:]))
+                        full_t[mask] = t
+                        return full_t
+                    else:
+                        return t  # not per-gaussian
+
+                full = scatter_tensor(v)
+
+                # Preserve absgrad if rasterizer attached it
+                if hasattr(v, "absgrad") and torch.is_tensor(v.absgrad):
+                    full_absgrad = scatter_tensor(v.absgrad)
+                    # attach attribute back to the scattered tensor
+                    full.absgrad = full_absgrad
+
+                out[k] = full
 
             return out
 
-
         def _merge_infos_global(info_a: dict, info_b: dict) -> dict:
             out = {}
-
             keys = set(info_a.keys()) | set(info_b.keys())
+
             for k in keys:
                 a = info_a.get(k, None)
                 b = info_b.get(k, None)
 
                 if a is None:
                     out[k] = b
-                elif b is None:
+                    continue
+                if b is None:
                     out[k] = a
-                elif torch.is_tensor(a) and torch.is_tensor(b) and a.shape == b.shape:
-                    # disjoint masks -> adding combines them
-                    out[k] = a + b
+                    continue
+
+                if torch.is_tensor(a) and torch.is_tensor(b) and a.shape == b.shape:
+                    merged = a + b  # disjoint masks -> combines cleanly
+
+                    # merge absgrad if present on either
+                    a_has = hasattr(a, "absgrad") and torch.is_tensor(a.absgrad)
+                    b_has = hasattr(b, "absgrad") and torch.is_tensor(b.absgrad)
+                    if a_has or b_has:
+                        a_ag = a.absgrad if a_has else torch.zeros_like(a)
+                        b_ag = b.absgrad if b_has else torch.zeros_like(b)
+                        merged.absgrad = a_ag + b_ag
+
+                    out[k] = merged
                 else:
-                    # non-tensor or shape mismatch: prefer a (or choose one policy)
+                    # fallback: prefer a
                     out[k] = a
 
             return out
