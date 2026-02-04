@@ -388,7 +388,7 @@ class MultiTrainer(BasicTrainer):
             with torch.no_grad():
                 for class_name in self.gaussian_classes.keys():
                     gaussian_mask = self.pts_labels == self.gaussian_classes[class_name]
-                    sep_rgb, sep_depth, sep_opacity, _, _ = render_fn(gaussian_mask)
+                    sep_rgb, sep_depth, sep_opacity, _, _, _ = render_fn(gaussian_mask)
                     outputs[class_name+"_rgb"] = self.affine_transformation(sep_rgb, image_infos)
                     outputs[class_name+"_opacity"] = sep_opacity
                     outputs[class_name+"_depth"] = sep_depth
@@ -396,7 +396,7 @@ class MultiTrainer(BasicTrainer):
         if not self.training or self.render_dynamic_mask:
             with torch.no_grad():
                 gaussian_mask = self.pts_labels != self.gaussian_classes["Background"]
-                sep_rgb, sep_depth, sep_opacity, _, _ = render_fn(gaussian_mask)
+                sep_rgb, sep_depth, sep_opacity, _, _, _ = render_fn(gaussian_mask)
                 outputs["Dynamic_rgb"] = self.affine_transformation(sep_rgb, image_infos)
                 outputs["Dynamic_opacity"] = sep_opacity
                 outputs["Dynamic_depth"] = sep_depth

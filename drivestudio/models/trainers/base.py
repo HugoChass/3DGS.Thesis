@@ -798,10 +798,11 @@ class BasicTrainer(nn.Module):
         assert hasattr(gs, "semantics"), "gs.semantics must exist"
         C = gs.semantics.shape[-1]  # num semantic classes (no bg)
         def render_fn(opacity_mask=None, return_info=False):
-
+            print(len(gs.means))
             mask_rgb = (gs.semantics_bool == 0).all(dim=1)
             gs_rgb = gs.masked(mask_rgb)
-
+            print(len(mask_rgb))
+            print(len(gs_rgb.means))
             opacities = gs_rgb.opacities.squeeze()
             if opacity_mask is not None:
                 opacity_mask = opacity_mask[mask_rgb]
@@ -842,7 +843,8 @@ class BasicTrainer(nn.Module):
 
             mask_sem = (gs.semantics_bool == 1).all(dim=1)
             gs_sem = gs.masked(mask_sem)
-
+            print(len(mask_sem))
+            print(len(gs_sem.means))
             sem_colors = torch.softmax(gs_sem.semantics, dim=-1)  # [N,C]
 
             opacities = gs_sem.opacities.squeeze()
@@ -872,17 +874,18 @@ class BasicTrainer(nn.Module):
 
             # For background prob, prefer RGB alpha (ties bg mass to the appearance compositing)
             opacity = alpha_rgb[..., None]          # [H, W, 1]
+            sem_opacity = alpha_sem[..., None]
 
             idx_rgb = mask_rgb.nonzero(as_tuple=False).squeeze(1)  # [N_rgb]
             idx_sem = mask_sem.nonzero(as_tuple=False).squeeze(1)  # [N_sem]
 
             if return_info:
-                return rgb, depth, opacity, sem_logits, sem_depth, {"rgb": info_rgb, "sem": info_sem, "idx_rgb": idx_rgb, "idx_sem": idx_sem}
+                return rgb, depth, opacity, sem_logits, sem_depth, sem_opacity, {"rgb": info_rgb, "sem": info_sem, "idx_rgb": idx_rgb, "idx_sem": idx_sem}
             else:
-                return rgb, depth, opacity, sem_logits, sem_depth
+                return rgb, depth, opacity, sem_logits, sem_depth, sem_opacity
 
         # main call
-        rgb, depth, opacity, sem_logits, sem_depth, info = render_fn(return_info=True)
+        rgb, depth, opacity, sem_logits, sem_depth, sem_opacity, info = render_fn(return_info=True)
         # Keep self.info compatible with your existing code (expects "means2d" etc.)
         # Use RGB info as the primary (so gradients/retains behave as before).
 
@@ -902,7 +905,7 @@ class BasicTrainer(nn.Module):
             fg_probs = sem_logits.float().softmax(-1)  # [H,W,C]
 
             # background mass ~ 1 - accumulated alpha (from RGB pass)
-            alpha_total = opacity.squeeze(-1)          # [H,W]
+            alpha_total = sem_opacity.squeeze(-1)          # [H,W]
             bg_prob = (1.0 - alpha_total).clamp_min(0.0)[..., None]  # [H,W,1]
 
             # combine foreground + background probs, normalize
