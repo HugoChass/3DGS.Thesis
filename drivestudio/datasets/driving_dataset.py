@@ -657,7 +657,7 @@ class DrivingDataset(SceneDataset):
         num_classes: int,
         ignore_index: int,
         sigma: float = 4.0,           # blur in pixels; ~1–4 is typical
-        valid_thresh: float = 0.01,   # min blurred valid mass to assign any label
+        valid_thresh: float = 0.02,   # min blurred valid mass to assign any label
         ) -> torch.Tensor:
 
         assert sem_map.dim() == 2
