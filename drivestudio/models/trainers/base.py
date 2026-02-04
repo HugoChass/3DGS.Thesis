@@ -868,7 +868,7 @@ class BasicTrainer(nn.Module):
             alpha_sem = alphas_sem[0].squeeze(-1)   # [H, W]
 
             sem_logits = img_sem[..., :C]           # [H, W, C]
-            # sem_depth  = img_sem[..., C:C+1]      # [H, W, 1]  (optional, usually not needed)
+            sem_depth  = img_sem[..., C:C+1]      # [H, W, 1]  (optional, usually not needed)
 
             # For background prob, prefer RGB alpha (ties bg mass to the appearance compositing)
             opacity = alpha_rgb[..., None]          # [H, W, 1]
@@ -877,12 +877,12 @@ class BasicTrainer(nn.Module):
             idx_sem = mask_sem.nonzero(as_tuple=False).squeeze(1)  # [N_sem]
 
             if return_info:
-                return rgb, depth, opacity, sem_logits, {"rgb": info_rgb, "sem": info_sem, "idx_rgb": idx_rgb, "idx_sem": idx_sem}
+                return rgb, depth, opacity, sem_logits, sem_depth, {"rgb": info_rgb, "sem": info_sem, "idx_rgb": idx_rgb, "idx_sem": idx_sem}
             else:
-                return rgb, depth, opacity, sem_logits
+                return rgb, depth, opacity, sem_logits, sem_depth
 
         # main call
-        rgb, depth, opacity, sem_logits, info = render_fn(return_info=True)
+        rgb, depth, opacity, sem_logits, sem_depth, info = render_fn(return_info=True)
         # Keep self.info compatible with your existing code (expects "means2d" etc.)
         # Use RGB info as the primary (so gradients/retains behave as before).
 
@@ -918,6 +918,7 @@ class BasicTrainer(nn.Module):
             results["semantic_logits"] = sem_logits          # blended logits (no bg)
             results["semantic_probs"]  = sem_all             # probs (C+1 incl. bg)
             results["semantic_label"]  = sem_labels          # [H,W,1]
+            results["semantic_depth"]  = sem_depth
 
             # pred_semantic_logits: [H, W, K]
             H, W, K = sem_logits.shape
@@ -1117,12 +1118,14 @@ class BasicTrainer(nn.Module):
             use_focal       = cfg.get("use_focal", False)
             use_contrastive = cfg.get("use_contrastive", False)
             use_reg         = cfg.get("use_reg", False)
+            use_sem_depth   = cfg.get("use_depth", False)
 
             # Weights
-            semce_w   = cfg.get("loss_ce_w", 0.1)
-            semfocal_w = cfg.get("loss_focal_w", 0.0)
-            semcont_w  = cfg.get("loss_contrastive_w", 0.0)
-            semreg_w   = cfg.get("loss_reg_w", 0.0)
+            semce_w     = cfg.get("loss_ce_w", 0.1)
+            semfocal_w  = cfg.get("loss_focal_w", 0.0)
+            semcont_w   = cfg.get("loss_contrastive_w", 0.0)
+            semreg_w    = cfg.get("loss_reg_w", 0.0)
+            semdepth_w  = cfg.get("loss_depth_w", 0.0)
 
             # Focal parameters
             focal_alpha = cfg.get("focal_alpha", 0.25)
@@ -1135,6 +1138,7 @@ class BasicTrainer(nn.Module):
             # Shared data
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_logits = outputs["semantic_logits"]
+            pred_semantic_depth  = outputs["semantic_depth"]
             gt_semantics         = image_infos["lidar_semantics_map"]
 
             # mask out unlabeled classes (17, 18)
@@ -1335,6 +1339,17 @@ class BasicTrainer(nn.Module):
 
                 semreg_weight = apply_warmup(semreg_w)
                 sem_losses["semantic_reg_loss"] = semreg_weight * loss_reg
+            
+            # ------------------------------------------------------------------
+            # 5) Depth loss on semantic Gaussians
+            # ------------------------------------------------------------------
+            
+            if use_sem_depth:
+                gt_depth = image_infos["lidar_depth_map"] 
+                lidar_hit_mask = (gt_depth > 0).float() * valid_loss_mask
+                sem_depth_loss = self.depth_loss_fn(pred_semantic_depth, gt_depth, lidar_hit_mask)
+                
+                sem_losses["sem_depth_loss"] = sem_depth_loss * semdepth_w
 
             # ------------------------------------------------------------------
             # Add semantic losses to main loss dict
