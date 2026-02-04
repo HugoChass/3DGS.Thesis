@@ -7,7 +7,7 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-1%2
+#SBATCH --array=0-6%7
 #SBATCH --job-name=MultigsTest
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -31,11 +31,11 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 # SCENES=(000 001 002 003 004 005 006 007 008 009)
 SCENES=(000)
 CONFIGS=(
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_CE_0.001_Entropy_0.0003.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.001_Entropy_0.0003.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.1_Entropy_0.0003.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.001_Entropy_0.0003_Inverse.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_CE_0.001.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_CE_0.001_Entropy_0.0003.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.001_Entropy_0.0003.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.1_Entropy_0.0003.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.001_Entropy_0.0003_Inverse.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_CE_0.001.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.001_Entropy_0.0003_Depth_0.01.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multitest/MultigsSemantic_Focal_0.001_Entropy_0.0003_Inverse_Depth_0.01.yaml
 )
@@ -82,7 +82,7 @@ srun apptainer exec --nv "$IMG" bash -lc "
   python tools/train.py \
     --config_file ${config_file} \
     --output_root /tudelft.net/staff-umbrella/hchassagnette/Workspace/output \
-    --project ThesisResults \
+    --project ThesisTEST \
     --run_name ${run_name} \
     dataset=nuscenes/6cams \
     data.scene_idx=${scene_idx} \
