@@ -798,11 +798,8 @@ class BasicTrainer(nn.Module):
         assert hasattr(gs, "semantics"), "gs.semantics must exist"
         C = gs.semantics.shape[-1]  # num semantic classes (no bg)
         def render_fn(opacity_mask=None, return_info=False):
-            print(len(gs.means))
             mask_rgb = (gs.semantics_bool == 0).all(dim=1)
             gs_rgb = gs.masked(mask_rgb)
-            print(len(mask_rgb))
-            print(len(gs_rgb.means))
             opacities = gs_rgb.opacities.squeeze()
             if opacity_mask is not None:
                 opacity_mask = opacity_mask[mask_rgb]
@@ -843,8 +840,6 @@ class BasicTrainer(nn.Module):
 
             mask_sem = (gs.semantics_bool == 1).all(dim=1)
             gs_sem = gs.masked(mask_sem)
-            print(len(mask_sem))
-            print(len(gs_sem.means))
             sem_colors = torch.softmax(gs_sem.semantics, dim=-1)  # [N,C]
 
             opacities = gs_sem.opacities.squeeze()
