@@ -184,6 +184,7 @@ def main(args):
         "gt_rgbs",
         "rgbs",
         "Background_rgbs",
+        "SemanticBackground_rgbs",
         "Dynamic_rgbs",
         "RigidNodes_rgbs",
         "DeformableNodes_rgbs",
@@ -373,11 +374,18 @@ def main(args):
                     unknown_error = True
                 else:
                     raise ValueError(f"NaN detected in loss {k} at step {step}")
+                if k == 'SemanticBackground_sharp_shape_reg':
+                    sem_unknown_error = True
+                else:
+                    raise ValueError(f"NaN detected in loss {k} at step {step}")
             if torch.isinf(v).any():
                 raise ValueError(f"Inf detected in loss {k} at step {step}")
         
         if unknown_error:
             loss_dict.pop('Background_sharp_shape_reg', None)
+        if sem_unknown_error:
+            loss_dict.pop('SemanticBackground_sharp_shape_reg', None)
+
 
         t0 = time.perf_counter()
         trainer.backward(loss_dict)
