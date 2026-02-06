@@ -368,6 +368,7 @@ def main(args):
         log_timing("loss", dt)
 
         unknown_error = False
+        sem_unknown_error = False
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
                 if k == 'Background_sharp_shape_reg':
