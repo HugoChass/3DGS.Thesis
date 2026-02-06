@@ -20,6 +20,28 @@ from utils.geometry import transform_points
 from utils.camera import get_interp_novel_trajectories
 from utils.misc import export_points_to_ply, import_str
 
+_PALETTE_255 = [
+    (0, 0, 0),          # 0 void
+    (102, 44, 22),      # 1 barrier
+    (0, 191, 255),      # 2 bicycle
+    (59, 59, 219),      # 3 bus
+    (0, 0, 255),        # 4 vehicle
+    (224, 117, 9),      # 5 construction vehicule
+    (9, 224, 206),      # 6 motercycle
+    (220, 20, 60),      # 7 human
+    (255, 69, 0),       # 8 traffic cone
+    (46, 82, 24),       # 9 trailer
+    (81, 22, 102),      # 10 truck
+    (50, 50, 50),       # 11 driveable_surface
+    (205, 133, 63),     # 12 flat.other
+    (244, 164, 96),     # 13 sidewalk
+    (143, 188, 143),    # 14 terrain
+    (105, 105, 105),    # 15 static_object
+    (34, 139, 34),      # 16 vegetation
+    (75, 117, 117),     # 17 UNLABELLED
+    (0, 255, 0),        # 18 BACKGROUND
+    ]
+
 logger = logging.getLogger()
 
 DEBUG_PCD=False
@@ -717,6 +739,8 @@ class DrivingDataset(SceneDataset):
         for cam in self.pixel_source.camera_data.values():
             lidar_depth_maps = []
             lidar_semantic_maps = []
+            testing_blur = {}
+            path = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/blurtest"
             for frame_idx in tqdm(
                 range(len(cam)), 
                 desc="Projecting lidar pts on images for camera {}".format(cam.cam_name),
@@ -775,9 +799,20 @@ class DrivingDataset(SceneDataset):
                 semantics = lidar_infos["lidar_semantics"][valid_mask].to(device=self.device, dtype=torch.int8)
                 semantic_map = torch.full((cam.HEIGHT, cam.WIDTH), fill_value=18, device=self.device, dtype=torch.int8)
                 semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
+                
+
+                s = [0.75]#, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5]
+                t = [0.001]#, 0.01, 0.02, 0.05, 0.1, 0.2]
+                
+                for sig in s:
+                    for thresh in t:
+                        test_map = self.gaussian_semantic_thicken(semantic_map, 19, 18, sigma=sig, valid_thresh=thresh)
+                        key = f"sigma_{sig}_thresh{thresh}"
+                        testing_blur.setdefault(key, []).append(test_map)
+
                 semantic_map = self.gaussian_semantic_thicken(semantic_map, 19, 18)
                 lidar_semantic_maps.append(semantic_map)
-                
+
                 # used to filter out the lidar points that are visible from the camera
                 visible_indices = torch.arange(
                     self.lidar_source.num_points, device=self.device
@@ -796,6 +831,94 @@ class DrivingDataset(SceneDataset):
             )
 
             cam.load_semantics(torch.stack(lidar_semantic_maps, dim=0).to(self.device))
+
+            def _tensor_to_uint8_frame(self, frame: torch.Tensor) -> np.ndarray:
+                """
+                Returns a uint8 BGR frame (H,W,3) for OpenCV.
+                - Semantic (H,W) integer -> palette color
+                - Depth (H,W) float -> normalized grayscale
+                - Image (H,W,3) float/uint8 -> BGR
+                """
+                if frame.is_cuda:
+                    frame = frame.detach().cpu()
+                else:
+                    frame = frame.detach()
+                frame = frame.contiguous()
+
+                # (3,H,W) -> (H,W,3)
+                if frame.ndim == 3 and frame.shape[0] in (1, 3) and frame.shape[-1] != 3:
+                    frame = frame.permute(1, 2, 0).contiguous()
+
+                # --- Semantic map: (H,W) integer
+                if frame.ndim == 2 and frame.dtype in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8):
+                    sem = frame.to(torch.int64).numpy()  # (H,W)
+
+                    # Build LUT from your palette (RGB)
+                    palette = np.array(_PALETTE_255, dtype=np.uint8)  # (K,3)
+                    K = palette.shape[0]
+
+                    # Any label outside [0, K-1] -> clamp to BACKGROUND (18) if exists, else 0
+                    fallback = 18 if K > 18 else 0
+                    sem_safe = sem.copy()
+                    sem_safe[(sem_safe < 0) | (sem_safe >= K)] = fallback
+
+                    rgb = palette[sem_safe]           # (H,W,3) RGB
+                    bgr = rgb[..., ::-1].copy()       # OpenCV BGR
+                    return bgr
+
+                # --- Depth map: (H,W) float
+                if frame.ndim == 2 and frame.dtype in (torch.float16, torch.float32, torch.float64):
+                    d = frame.numpy()
+                    mask = d > 0
+                    if np.any(mask):
+                        vmin = np.percentile(d[mask], 1)
+                        vmax = np.percentile(d[mask], 99)
+                        if vmax <= vmin:
+                            vmax = vmin + 1e-6
+                        d_norm = np.clip((d - vmin) / (vmax - vmin), 0, 1)
+                    else:
+                        d_norm = np.zeros_like(d, dtype=np.float32)
+
+                    gray = (d_norm * 255.0).astype(np.uint8)
+                    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+                # --- Image-like: (H,W,3)
+                if frame.ndim == 3 and frame.shape[-1] == 3:
+                    arr = frame.numpy()
+                    if arr.dtype != np.uint8:
+                        arr = np.clip(arr, 0, 1)
+                        arr = (arr * 255.0).astype(np.uint8)
+                    return arr[..., ::-1].copy()  # RGB->BGR
+
+                raise ValueError(f"Unsupported frame shape/dtype: shape={tuple(frame.shape)}, dtype={frame.dtype}")
+
+            def _write_video(self, frames, save_path: str, fps: int = 10):
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                if len(frames) == 0:
+                    return
+
+                first = self._tensor_to_uint8_frame(frames[0])
+                H, W = first.shape[:2]
+
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                writer = cv2.VideoWriter(save_path, fourcc, fps, (W, H), isColor=True)
+                if not writer.isOpened():
+                    raise RuntimeError(f"Failed to open video writer for {save_path}")
+
+                try:
+                    writer.write(first)
+                    for f in frames[1:]:
+                        img = self._tensor_to_uint8_frame(f)
+                        if img.shape[0] != H or img.shape[1] != W:
+                            img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
+                        writer.write(img)
+                finally:
+                    writer.release()
+
+            for k, v in testing_blur.items():
+                save_path = os.path.join(path, f"{k}.mp4")
+                self._write_video(v, save_path, fps=10)
+            exit(0)
             
         if delete_out_of_view_points:
             self.lidar_source.delete_invisible_pts()
