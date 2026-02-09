@@ -801,8 +801,8 @@ class DrivingDataset(SceneDataset):
                 semantic_map[_cam_points[:, 1].long(), _cam_points[:, 0].long()] = semantics.squeeze(-1)
                 
 
-                s = [0.75]#, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5]
-                t = [0.001]#, 0.01, 0.02, 0.05, 0.1, 0.2]
+                s = [0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5]
+                t = [0.001, 0.01, 0.02, 0.05, 0.1, 0.2]
                 
                 for sig in s:
                     for thresh in t:
