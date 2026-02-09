@@ -1,13 +1,13 @@
 #!/bin/bash -l
 #SBATCH --partition=general
 #SBATCH --qos=short
-#SBATCH --time=03:00:00
+#SBATCH --time=04:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=48G
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-6%3
+#SBATCH --array=0-39%2
 #SBATCH --job-name=streetgsGaussiansCE
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -28,15 +28,11 @@ cd /tudelft.net/staff-umbrella/hchassagnette/Workspace
 IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 
 # ---- Define your 10 scene indices here (edit to match what you want) ----
-# SCENES=(000 001 002 003 004 005 006 007 008 009)
-SCENES=(000)
+SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,001.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,003.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,01.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,03.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,1.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_0,3.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/CE/streetgsSemantic_CE_1.yaml
 )
 
@@ -75,7 +71,7 @@ srun apptainer exec --nv "$IMG" bash -lc "
   python tools/train.py \
     --config_file ${config_file} \
     --output_root /tudelft.net/staff-umbrella/hchassagnette/Workspace/output \
-    --project ThesisResearch \
+    --project ThesisResultsV2 \
     --run_name ${run_name} \
     dataset=nuscenes/6cams \
     data.scene_idx=${scene_idx} \

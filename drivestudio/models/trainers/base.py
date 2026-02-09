@@ -1136,7 +1136,6 @@ class BasicTrainer(nn.Module):
             # Shared data
             pred_semantic_labels = outputs["semantic_label"]
             pred_semantic_logits = outputs["semantic_logits"]
-            pred_semantic_depth  = outputs["semantic_depth"]
             gt_semantics         = image_infos["lidar_semantics_map"]
 
             # mask out unlabeled classes (17, 18)
@@ -1343,6 +1342,7 @@ class BasicTrainer(nn.Module):
             # ------------------------------------------------------------------
             
             if use_sem_depth:
+                pred_semantic_depth  = outputs["semantic_depth"]
                 gt_depth = image_infos["lidar_depth_map"] 
                 lidar_hit_mask = (gt_depth > 0).float() * valid_loss_mask
                 sem_depth_loss = self.depth_loss_fn(pred_semantic_depth, gt_depth, lidar_hit_mask)

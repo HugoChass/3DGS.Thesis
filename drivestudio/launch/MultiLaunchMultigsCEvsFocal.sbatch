@@ -84,7 +84,7 @@ srun apptainer exec --nv "$IMG" bash -lc "
   python tools/train.py \
     --config_file ${config_file} \
     --output_root /tudelft.net/staff-umbrella/hchassagnette/Workspace/output \
-    --project ThesisResults \
+    --project ThesisResultsV2 \
     --run_name ${run_name} \
     dataset=nuscenes/6cams \
     data.scene_idx=${scene_idx} \
