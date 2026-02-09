@@ -694,7 +694,7 @@ class NuScenesProcessor(object):
         tree = cKDTree(all_xyz)
         return tree, all_lbl
 
-    def propagate_labels_to_sweep(self, nusc, sweep_token, tree, all_lbl, r_max=0.2):
+    def propagate_labels_to_sweep(self, nusc, sweep_token, tree, all_lbl, r_max=0.1):
         sd = nusc.get('sample_data', sweep_token)
         pc = LidarPointCloud.from_file(os.path.join(nusc.dataroot, sd['filename']))
 
