@@ -832,89 +832,6 @@ class DrivingDataset(SceneDataset):
 
             cam.load_semantics(torch.stack(lidar_semantic_maps, dim=0).to(self.device))
 
-            def _tensor_to_uint8_frame(self, frame: torch.Tensor) -> np.ndarray:
-                """
-                Returns a uint8 BGR frame (H,W,3) for OpenCV.
-                - Semantic (H,W) integer -> palette color
-                - Depth (H,W) float -> normalized grayscale
-                - Image (H,W,3) float/uint8 -> BGR
-                """
-                if frame.is_cuda:
-                    frame = frame.detach().cpu()
-                else:
-                    frame = frame.detach()
-                frame = frame.contiguous()
-
-                # (3,H,W) -> (H,W,3)
-                if frame.ndim == 3 and frame.shape[0] in (1, 3) and frame.shape[-1] != 3:
-                    frame = frame.permute(1, 2, 0).contiguous()
-
-                # --- Semantic map: (H,W) integer
-                if frame.ndim == 2 and frame.dtype in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8):
-                    sem = frame.to(torch.int64).numpy()  # (H,W)
-
-                    # Build LUT from your palette (RGB)
-                    palette = np.array(_PALETTE_255, dtype=np.uint8)  # (K,3)
-                    K = palette.shape[0]
-
-                    # Any label outside [0, K-1] -> clamp to BACKGROUND (18) if exists, else 0
-                    fallback = 18 if K > 18 else 0
-                    sem_safe = sem.copy()
-                    sem_safe[(sem_safe < 0) | (sem_safe >= K)] = fallback
-
-                    rgb = palette[sem_safe]           # (H,W,3) RGB
-                    bgr = rgb[..., ::-1].copy()       # OpenCV BGR
-                    return bgr
-
-                # --- Depth map: (H,W) float
-                if frame.ndim == 2 and frame.dtype in (torch.float16, torch.float32, torch.float64):
-                    d = frame.numpy()
-                    mask = d > 0
-                    if np.any(mask):
-                        vmin = np.percentile(d[mask], 1)
-                        vmax = np.percentile(d[mask], 99)
-                        if vmax <= vmin:
-                            vmax = vmin + 1e-6
-                        d_norm = np.clip((d - vmin) / (vmax - vmin), 0, 1)
-                    else:
-                        d_norm = np.zeros_like(d, dtype=np.float32)
-
-                    gray = (d_norm * 255.0).astype(np.uint8)
-                    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-                # --- Image-like: (H,W,3)
-                if frame.ndim == 3 and frame.shape[-1] == 3:
-                    arr = frame.numpy()
-                    if arr.dtype != np.uint8:
-                        arr = np.clip(arr, 0, 1)
-                        arr = (arr * 255.0).astype(np.uint8)
-                    return arr[..., ::-1].copy()  # RGB->BGR
-
-                raise ValueError(f"Unsupported frame shape/dtype: shape={tuple(frame.shape)}, dtype={frame.dtype}")
-
-            def _write_video(self, frames, save_path: str, fps: int = 10):
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                if len(frames) == 0:
-                    return
-
-                first = self._tensor_to_uint8_frame(frames[0])
-                H, W = first.shape[:2]
-
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                writer = cv2.VideoWriter(save_path, fourcc, fps, (W, H), isColor=True)
-                if not writer.isOpened():
-                    raise RuntimeError(f"Failed to open video writer for {save_path}")
-
-                try:
-                    writer.write(first)
-                    for f in frames[1:]:
-                        img = self._tensor_to_uint8_frame(f)
-                        if img.shape[0] != H or img.shape[1] != W:
-                            img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
-                        writer.write(img)
-                finally:
-                    writer.release()
-
             for k, v in testing_blur.items():
                 save_path = os.path.join(path, f"{k}.mp4")
                 self._write_video(v, save_path, fps=10)
@@ -923,6 +840,89 @@ class DrivingDataset(SceneDataset):
         if delete_out_of_view_points:
             self.lidar_source.delete_invisible_pts()
     
+    def _tensor_to_uint8_frame(self, frame: torch.Tensor) -> np.ndarray:
+        """
+        Returns a uint8 BGR frame (H,W,3) for OpenCV.
+        - Semantic (H,W) integer -> palette color
+        - Depth (H,W) float -> normalized grayscale
+        - Image (H,W,3) float/uint8 -> BGR
+        """
+        if frame.is_cuda:
+            frame = frame.detach().cpu()
+        else:
+            frame = frame.detach()
+        frame = frame.contiguous()
+
+        # (3,H,W) -> (H,W,3)
+        if frame.ndim == 3 and frame.shape[0] in (1, 3) and frame.shape[-1] != 3:
+            frame = frame.permute(1, 2, 0).contiguous()
+
+        # --- Semantic map: (H,W) integer
+        if frame.ndim == 2 and frame.dtype in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8):
+            sem = frame.to(torch.int64).numpy()  # (H,W)
+
+            # Build LUT from your palette (RGB)
+            palette = np.array(_PALETTE_255, dtype=np.uint8)  # (K,3)
+            K = palette.shape[0]
+
+            # Any label outside [0, K-1] -> clamp to BACKGROUND (18) if exists, else 0
+            fallback = 18 if K > 18 else 0
+            sem_safe = sem.copy()
+            sem_safe[(sem_safe < 0) | (sem_safe >= K)] = fallback
+
+            rgb = palette[sem_safe]           # (H,W,3) RGB
+            bgr = rgb[..., ::-1].copy()       # OpenCV BGR
+            return bgr
+
+        # --- Depth map: (H,W) float
+        if frame.ndim == 2 and frame.dtype in (torch.float16, torch.float32, torch.float64):
+            d = frame.numpy()
+            mask = d > 0
+            if np.any(mask):
+                vmin = np.percentile(d[mask], 1)
+                vmax = np.percentile(d[mask], 99)
+                if vmax <= vmin:
+                    vmax = vmin + 1e-6
+                d_norm = np.clip((d - vmin) / (vmax - vmin), 0, 1)
+            else:
+                d_norm = np.zeros_like(d, dtype=np.float32)
+
+            gray = (d_norm * 255.0).astype(np.uint8)
+            return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+        # --- Image-like: (H,W,3)
+        if frame.ndim == 3 and frame.shape[-1] == 3:
+            arr = frame.numpy()
+            if arr.dtype != np.uint8:
+                arr = np.clip(arr, 0, 1)
+                arr = (arr * 255.0).astype(np.uint8)
+            return arr[..., ::-1].copy()  # RGB->BGR
+
+        raise ValueError(f"Unsupported frame shape/dtype: shape={tuple(frame.shape)}, dtype={frame.dtype}")
+
+    def _write_video(self, frames, save_path: str, fps: int = 10):
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        if len(frames) == 0:
+            return
+
+        first = self._tensor_to_uint8_frame(frames[0])
+        H, W = first.shape[:2]
+
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(save_path, fourcc, fps, (W, H), isColor=True)
+        if not writer.isOpened():
+            raise RuntimeError(f"Failed to open video writer for {save_path}")
+
+        try:
+            writer.write(first)
+            for f in frames[1:]:
+                img = self._tensor_to_uint8_frame(f)
+                if img.shape[0] != H or img.shape[1] != W:
+                    img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
+                writer.write(img)
+        finally:
+            writer.release()
+
     def compute_clip_teacher_features(self, clip_model, image_size=224, device=None):
         """
         Compute CLIP-based teacher features for each ground-truth image
