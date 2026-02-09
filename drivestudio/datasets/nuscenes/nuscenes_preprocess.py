@@ -694,7 +694,7 @@ class NuScenesProcessor(object):
         tree = cKDTree(all_xyz)
         return tree, all_lbl
 
-    def propagate_labels_to_sweep(self, nusc, sweep_token, tree, all_lbl, r_max=0.1):
+    def propagate_labels_to_sweep(self, nusc, sweep_token, tree, all_lbl, r_max=0.2):
         sd = nusc.get('sample_data', sweep_token)
         pc = LidarPointCloud.from_file(os.path.join(nusc.dataroot, sd['filename']))
 
@@ -712,7 +712,7 @@ class NuScenesProcessor(object):
 
         xyz_w = self.transform_points(pc.points[:3, :].T, T_lw)
 
-        k = 3
+        k = 7
         dists, idxs = tree.query(xyz_w, k=k, workers=-1)
 
         valid = dists <= r_max
