@@ -373,9 +373,7 @@ def main(args):
             if torch.isnan(v).any():
                 if k == 'Background_sharp_shape_reg':
                     unknown_error = True
-                else:
-                    raise ValueError(f"NaN detected in loss {k} at step {step}")
-                if k == 'SemanticBackground_sharp_shape_reg':
+                elif k == 'SemanticBackground_sharp_shape_reg':
                     sem_unknown_error = True
                 else:
                     raise ValueError(f"NaN detected in loss {k} at step {step}")
