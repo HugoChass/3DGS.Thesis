@@ -708,7 +708,7 @@ class BasicTrainer(nn.Module):
             rgb = torch.clamp(rgb, max=1.0)
 
             if not return_info:
-                return rgb, depth, alphas[..., None], sem_logits
+                return rgb, depth, alphas[..., None], sem_logits, None, None
             else:
                 return rgb, depth, alphas[..., None], sem_logits, info
 
