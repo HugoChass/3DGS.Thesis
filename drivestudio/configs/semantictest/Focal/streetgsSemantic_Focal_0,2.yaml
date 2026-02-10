@@ -39,8 +39,8 @@ trainer:
       use_focal: True
       use_contrastive: False
       use_reg: False
-      loss_ce_w: 1
-      loss_focal_w: 0.001
+      loss_ce_w: 0.2
+      loss_focal_w: 0.2
       loss_contrastive_w: 0.1
       loss_reg_w: 0.1
       class_weight_mode: null        # or "inv_freq" or null
