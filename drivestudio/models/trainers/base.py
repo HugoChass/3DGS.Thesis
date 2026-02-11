@@ -389,13 +389,13 @@ class BasicTrainer(nn.Module):
     def update_visibility_filter(self) -> None:
         # these must be stored from render_fn each step
         idx_rgb = self.info["idx_rgb"]   # LongTensor [N_rgb] global ids
-        idx_sem = self.info["idx_sem"]   # LongTensor [N_sem] global ids
 
-        labels_rgb = self.pts_labels[idx_rgb]  # [N_rgb]
-        labels_sem = self.pts_labels[idx_sem]  # [N_sem]
+        if idx_rgb is not None:
+            labels_rgb = self.pts_labels[idx_rgb]  # [N_rgb]
+        else:
+            labels_rgb = self.pts_labels
 
         info_rgb = self.info["rgb"]
-        info_sem = self.info["sem"]
 
         for class_name in self.gaussian_classes.keys():
             class_id = self.gaussian_classes[class_name]
@@ -406,6 +406,9 @@ class BasicTrainer(nn.Module):
                 self.models[class_name].cur_radii = info_rgb["radii"][0, local_mask]
 
             else:
+                idx_sem = self.info["idx_sem"]   # LongTensor [N_sem] global ids
+                labels_sem = self.pts_labels[idx_sem]  # [N_sem]
+                info_sem = self.info["sem"]
                 # local mask within sem pass
                 local_mask = (labels_sem == class_id)   # [N_sem]
                 self.models[class_name].cur_radii = info_sem["radii"][0, local_mask]
@@ -710,7 +713,7 @@ class BasicTrainer(nn.Module):
             if not return_info:
                 return rgb, depth, alphas[..., None], sem_logits, None, None
             else:
-                return rgb, depth, alphas[..., None], sem_logits, info
+                return rgb, depth, alphas[..., None], sem_logits, {"rgb": info, "sem": None, "idx_rgb": None, "idx_sem": None}
 
         # main call
         rgb, depth, opacity, sem_logits, self.info = render_fn(return_info=True)
