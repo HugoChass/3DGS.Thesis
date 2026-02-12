@@ -788,7 +788,7 @@ class BasicTrainer(nn.Module):
                 results["semantic_rgb_no_unlabelled"] = sem_vis_no_unl
 
         if self.training:
-            self.info["means2d"].retain_grad()
+            self.info["rgb"]["means2d"].retain_grad()
 
         return results, render_fn
 
