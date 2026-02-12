@@ -333,24 +333,30 @@ class BasicTrainer(nn.Module):
         # --- grads (per-pass) ---
         if self.render_cfg.absgrad:
             grads_rgb = info_rgb["means2d"].absgrad.clone()
-            grads_sem = info_sem["means2d"].absgrad.clone()
+            if info_sem is not None:
+                grads_sem = info_sem["means2d"].absgrad.clone()
         else:
             # Only valid if you called retain_grad() on the actual means2d tensors
             grads_rgb = info_rgb["means2d"].grad.clone()
-            grads_sem = info_sem["means2d"].grad.clone()
+            if info_sem is not None:
+                grads_sem = info_sem["means2d"].grad.clone()
 
         # scale grads like before (keep shapes [1, N_pass, 2])
         grads_rgb[..., 0] *= width / 2.0 * self.render_cfg.batch_size
         grads_rgb[..., 1] *= height / 2.0 * self.render_cfg.batch_size
-        grads_sem[..., 0] *= width / 2.0 * self.render_cfg.batch_size
-        grads_sem[..., 1] *= height / 2.0 * self.render_cfg.batch_size
 
         radii_rgb = info_rgb["radii"]  # [1, N_rgb]
-        radii_sem = info_sem["radii"]  # [1, N_sem]
 
-        # labels in local spaces
-        labels_rgb = self.pts_labels[idx_rgb]  # [N_rgb]
-        labels_sem = self.pts_labels[idx_sem]  # [N_sem]
+        if idx_rgb is not None:
+            labels_rgb = self.pts_labels[idx_rgb]  # [N_rgb]
+        else:
+            labels_rgb = self.pts_labels
+        
+        if info_sem is not None:
+            grads_sem[..., 0] *= width / 2.0 * self.render_cfg.batch_size
+            grads_sem[..., 1] *= height / 2.0 * self.render_cfg.batch_size
+            radii_sem = info_sem["radii"]  # [1, N_sem]
+            labels_sem = self.pts_labels[idx_sem]  # [N_sem]
 
         last_size = max(width, height)
 
