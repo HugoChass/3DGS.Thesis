@@ -8,7 +8,7 @@ import pandas as pd
 # ==========================
 # CONFIG
 # ==========================
-MAIN_FOLDER = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/ThesisResults"
+MAIN_FOLDER = "/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/ThesisResultsV2"
 OUT_DIR = os.path.join(MAIN_FOLDER, "tables")
 os.makedirs(OUT_DIR, exist_ok=True)
 
