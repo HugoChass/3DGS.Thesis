@@ -1058,7 +1058,7 @@ class BasicTrainer(nn.Module):
 
         self._dump_autograd_graph(
             loss=total_loss,                 # IMPORTANT: unscaled loss is fine
-            out_dir=os.path.join("logs", "autograd_graphs"),
+            out_dir="/tudelft.net/staff-umbrella/hchassagnette/Workspace/output/graph",
             tag="train"
         )
         exit(0)
