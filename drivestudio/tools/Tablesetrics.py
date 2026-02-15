@@ -13,14 +13,19 @@ OUT_DIR = os.path.join(MAIN_FOLDER, "tables")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 OUT_CSV = os.path.join(OUT_DIR, "results_per_scene.csv")
-OUT_XLSX = os.path.join(OUT_DIR, "results_per_scene.xlsx")
 
 # JSON metric keys
-METRIC_KEYS = {
+METRIC_KEYS_FULL = {
     "PSNR": "image_metrics/full/psnr",
     "SSIM": "image_metrics/full/ssim",
     "LPIPS": "image_metrics/full/lpips",
     "MIOU": "image_metrics/full/miou",
+}
+METRIC_KEYS_TEST = {
+    "PSNR": "image_metrics/test/psnr",
+    "SSIM": "image_metrics/test/ssim",
+    "LPIPS": "image_metrics/test/lpips",
+    "MIOU": "image_metrics/test/miou",
 }
 
 # Runtime parsing
@@ -42,9 +47,12 @@ def extract_run_type(folder_name: str):
         return folder_name[:-4]
     return folder_name
 
-def load_first_metrics_json(run_folder: str):
-    """Return dict from first images_full_*.json, else None."""
-    metric_files = glob.glob(os.path.join(run_folder, "metrics", "images_full_*.json"))
+def load_first_metrics_json(run_folder: str, prefix: str):
+    """
+    Return dict from the most recent metrics/{prefix}*.json, else None.
+    Example prefixes: "images_full_" or "images_test_".
+    """
+    metric_files = glob.glob(os.path.join(run_folder, "metrics", f"{prefix}*.json"))
     if not metric_files:
         return None
     metric_files.sort(key=os.path.getmtime, reverse=True)
@@ -124,8 +132,6 @@ def load_novel_view_miou(run_folder: str):
     # 1) dict: {frame_id: {metrics...}, ...}
     # 2) list: [{metrics...}, {metrics...}, ...]
     if isinstance(obj, dict):
-        # If it's a dict-of-frames, values are frames
-        # If it has a "frames" field, use that too.
         if "frames" in obj and isinstance(obj["frames"], (list, dict)):
             frames = obj["frames"]
             if isinstance(frames, list):
@@ -134,7 +140,6 @@ def load_novel_view_miou(run_folder: str):
                 frame_dicts = list(frames.values())
         else:
             frame_dicts = list(obj.values())
-
     elif isinstance(obj, list):
         frame_dicts = obj
 
@@ -167,14 +172,24 @@ for subfolder in os.listdir(MAIN_FOLDER):
         continue
 
     # Load full-view metrics JSON (optional)
-    metrics = load_first_metrics_json(run_path)
+    metrics_full = load_first_metrics_json(run_path, prefix="images_full_")
+    # Load test-view metrics JSON (optional)
+    metrics_test = load_first_metrics_json(run_path, prefix="images_test_")
 
     psnr = ssim = lpips = miou = None
-    if isinstance(metrics, dict):
-        psnr = metrics.get(METRIC_KEYS["PSNR"])
-        ssim = metrics.get(METRIC_KEYS["SSIM"])
-        lpips = metrics.get(METRIC_KEYS["LPIPS"])
-        miou = metrics.get(METRIC_KEYS["MIOU"])
+    psnr_test = ssim_test = lpips_test = miou_test = None
+
+    if isinstance(metrics_full, dict):
+        psnr = metrics_full.get(METRIC_KEYS_FULL["PSNR"])
+        ssim = metrics_full.get(METRIC_KEYS_FULL["SSIM"])
+        lpips = metrics_full.get(METRIC_KEYS_FULL["LPIPS"])
+        miou = metrics_full.get(METRIC_KEYS_FULL["MIOU"])
+
+    if isinstance(metrics_test, dict):
+        psnr_test = metrics_test.get(METRIC_KEYS_TEST["PSNR"])
+        ssim_test = metrics_test.get(METRIC_KEYS_TEST["SSIM"])
+        lpips_test = metrics_test.get(METRIC_KEYS_TEST["LPIPS"])
+        miou_test = metrics_test.get(METRIC_KEYS_TEST["MIOU"])
 
     # Load runtime (optional)
     total_h, sec_per_it = parse_runtime_from_logs(run_path)
@@ -182,17 +197,30 @@ for subfolder in os.listdir(MAIN_FOLDER):
     # Load novel-view mIoU (optional)
     novel_view_miou = load_novel_view_miou(run_path)
 
-    # Skip totally empty runs
-    if metrics is None and total_h is None and sec_per_it is None and novel_view_miou is None:
+    # Skip totally empty runs (now includes test metrics too)
+    if (
+        metrics_full is None
+        and metrics_test is None
+        and total_h is None
+        and sec_per_it is None
+        and novel_view_miou is None
+    ):
         continue
 
     rows.append({
         "method": method,
         "scene_number": scene_number,
+
         "SSIM": ssim,
         "PSNR": psnr,
         "LPIPS": lpips,
         "MIOU": miou,
+
+        "SSIM_test": ssim_test,
+        "PSNR_test": psnr_test,
+        "LPIPS_test": lpips_test,
+        "MIOU_test": miou_test,
+
         "novel_view_miou": novel_view_miou,
         "total_run_time_h": total_h,
         "sec_per_iteration": sec_per_it,
@@ -209,14 +237,13 @@ if not df.empty:
 cols = [
     "method", "scene_number",
     "SSIM", "PSNR", "LPIPS", "MIOU",
+    "SSIM_test", "PSNR_test", "LPIPS_test", "MIOU_test",
     "novel_view_miou",
     "total_run_time_h", "sec_per_iteration",
 ]
 df = df[cols]
 
 df.to_csv(OUT_CSV, index=False)
-# df.to_excel(OUT_XLSX, index=False)
 
 print(f"Wrote {len(df)} rows")
 print(f"CSV : {OUT_CSV}")
-print(f"XLSX: {OUT_XLSX}")
