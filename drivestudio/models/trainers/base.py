@@ -1055,6 +1055,14 @@ class BasicTrainer(nn.Module):
     def backward(self, loss_dict: Dict[str, torch.Tensor]) -> None:
         # ----------------- backward ----------------
         total_loss = sum(loss for loss in loss_dict.values())
+
+        self._dump_autograd_graph(
+            loss=total_loss,                 # IMPORTANT: unscaled loss is fine
+            out_dir=os.path.join("logs", "autograd_graphs"),
+            tag="train"
+        )
+        exit(0)
+
         self.grad_scaler.scale(total_loss).backward()
         self.optimizer_step()
         
@@ -1067,7 +1075,37 @@ class BasicTrainer(nn.Module):
                 if group["name"] in self.lr_schedulers:
                     new_lr = self.lr_schedulers[group["name"]](self.step)
                     group["lr"] = new_lr
-                
+    
+    def _dump_autograd_graph(self, loss: torch.Tensor, out_dir: str, tag: str = ""):
+        """
+        Saves autograd graph for `loss` using torchviz.
+        Writes: <out_dir>/autograd_<tag>_stepXXXXX.{dot,png}
+        """
+        try:
+            from torchviz import make_dot
+        except ImportError as e:
+            logger.warning("torchviz not installed. `pip install torchviz` to enable graph dumps.")
+            return
+
+        os.makedirs(out_dir, exist_ok=True)
+        step = getattr(self, "step", 0)
+
+        # Param mapping is optional but makes the graph readable (names on leaves)
+        params = {}
+        try:
+            params = dict(self.named_parameters())
+        except Exception:
+            pass
+
+        dot = make_dot(loss, params=params)
+
+        base = f"autograd{('_' + tag) if tag else ''}_step{step:05d}"
+        dot_path = os.path.join(out_dir, base + ".dot")
+        png_path = os.path.join(out_dir, base + ".png")
+
+        # Save DOT (for later inspection / custom rendering)
+        dot.save(dot_path)
+
     def compute_losses(
         self,
         outputs: Dict[str, torch.Tensor],
