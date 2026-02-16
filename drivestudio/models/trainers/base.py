@@ -1077,34 +1077,48 @@ class BasicTrainer(nn.Module):
                     group["lr"] = new_lr
     
     def _dump_autograd_graph(self, loss: torch.Tensor, out_dir: str, tag: str = ""):
-        """
-        Saves autograd graph for `loss` using torchviz.
-        Writes: <out_dir>/autograd_<tag>_stepXXXXX.{dot,png}
-        """
         try:
+            import os
             from torchviz import make_dot
-        except ImportError as e:
-            logger.warning("torchviz not installed. `pip install torchviz` to enable graph dumps.")
+            import torchviz.dot as tvdot
+        except ImportError:
+            logger.warning("torchviz not installed. `pip install torchviz`")
             return
+
+        # ---- torchviz compatibility patch: tolerate None tensors ----
+        # Some custom autograd nodes expose `.variable` / saved tensors as None.
+        _orig_get_var_name = tvdot.get_var_name
+
+        def _safe_get_var_name(var, name=None):
+            if var is None:
+                return "None"
+            try:
+                return _orig_get_var_name(var, name)
+            except Exception:
+                # last resort: don't crash on weird objects
+                return f"{type(var).__name__}"
+
+        tvdot.get_var_name = _safe_get_var_name
+        # -----------------------------------------------------------
 
         os.makedirs(out_dir, exist_ok=True)
         step = getattr(self, "step", 0)
 
-        # Param mapping is optional but makes the graph readable (names on leaves)
-        params = {}
-        try:
-            params = dict(self.named_parameters())
-        except Exception:
-            pass
+        # Make graph more readable by labeling leaf params
+        params = dict(self.named_parameters())
 
         dot = make_dot(loss, params=params)
 
         base = f"autograd{('_' + tag) if tag else ''}_step{step:05d}"
         dot_path = os.path.join(out_dir, base + ".dot")
-        png_path = os.path.join(out_dir, base + ".png")
-
-        # Save DOT (for later inspection / custom rendering)
         dot.save(dot_path)
+
+        try:
+            dot.render(filename=base, directory=out_dir, format="png", cleanup=True)
+            logger.info(f"Saved autograd graph: {dot_path} (+ png)")
+        except Exception as e:
+            logger.warning(f"Saved DOT but could not render PNG (graphviz system install missing?): {dot_path} ({e})")
+
 
     def compute_losses(
         self,
