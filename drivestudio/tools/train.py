@@ -400,6 +400,46 @@ def main(args):
         # print summary every N steps (e.g., 50)
         print_timing_summary(step=step, every=10000, reset_after_print=False)  # set True to roll a moving window
 
+        def testing(trainer):
+            def grad_norm(params):
+                s = 0.0
+                for p in params:
+                    if p.grad is not None:
+                        s += float(p.grad.abs().sum().item())
+                return s
+
+            rgb_param_list = []
+            sem_param_list = []
+            for name, model in trainer.models.items():
+                if "Semantic" in name:
+                    sem_param_list += list(model.parameters())
+                else:
+                    rgb_param_list += list(model.parameters())
+
+            # --- RGB-only backward ---
+            trainer.optimizer_zero_grad()
+            outputs = trainer.forward(...)
+            losses = trainer.compute_losses(outputs, image_infos, cam_infos)
+
+            rgb_only = losses["rgb_loss"] + losses["ssim_loss"]  # plus whatever else you consider RGB-only
+            rgb_only.backward()
+
+            print("RGB grads:", grad_norm(rgb_param_list))
+            print("SEM grads (should be 0):", grad_norm(sem_param_list))
+
+            # --- SEM-only backward ---
+            trainer.optimizer_zero_grad()
+            outputs = trainer.forward(...)
+            losses = trainer.compute_losses(outputs, image_infos, cam_infos)
+
+            sem_only = losses["semantic_CE_loss"]  # etc
+            sem_only.backward()
+
+            print("SEM grads:", grad_norm(sem_param_list))
+            print("RGB grads (should be 0):", grad_norm(rgb_param_list))
+
+        testing(trainer=trainer)
+
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------
         with torch.no_grad():
