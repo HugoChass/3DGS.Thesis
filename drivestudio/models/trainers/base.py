@@ -1061,18 +1061,16 @@ class BasicTrainer(nn.Module):
         # ----------------- backward ----------------
         total_loss = sum(loss_dict.values())
 
-        loss_name_map = {
-            id(v): k
-            for k, v in loss_dict.items()
-            if isinstance(v, torch.Tensor)
-        }
+        if self.step in (0, 1, 10) or (self.step % 1000 == 0):
+            self._dump_autograd_graph_from_losses(
+                loss_dict=loss_dict,
+                total_loss=total_loss,
+                out_dir="logs/autograd_graphs",
+                tag="train",
+            )
 
-        self._dump_autograd_graph(
-            total_loss,
-            out_dir="logs/autograd_graphs",
-            tag="train",
-            tensor_name_map=loss_name_map,
-        )
+        self.grad_scaler.scale(total_loss).backward()
+
         exit(0)
 
         self.grad_scaler.scale(total_loss).backward()
@@ -1087,6 +1085,110 @@ class BasicTrainer(nn.Module):
                 if group["name"] in self.lr_schedulers:
                     new_lr = self.lr_schedulers[group["name"]](self.step)
                     group["lr"] = new_lr
+    
+    def _dump_autograd_graph_from_losses(
+        self,
+        loss_dict: Dict[str, torch.Tensor],
+        total_loss: torch.Tensor,
+        out_dir: str,
+        tag: str = "",
+    ):
+        import os
+        os.makedirs(out_dir, exist_ok=True)
+
+        def make_dot_safe_multi_root(
+            loss_dict: Dict[str, torch.Tensor],
+            total_loss: torch.Tensor,
+            params: Dict[str, torch.Tensor] = None,
+        ):
+            from graphviz import Digraph
+            import torch
+
+            if params is None:
+                params = {}
+            param_map = {id(v): k for k, v in params.items()}
+
+            dot = Digraph(format="png", graph_attr={"rankdir": "LR"})
+            seen = set()
+
+            def add_tensor_node(t: torch.Tensor, label: str, fill="lightblue"):
+                if t is None:
+                    return
+                tid = str(id(t))
+                if tid in seen:
+                    return
+                seen.add(tid)
+                try:
+                    shape = tuple(t.size())
+                except Exception:
+                    shape = "?"
+                dot.node(tid, f"{label}\n{shape}", shape="box", style="filled", fillcolor=fill)
+
+            def add_fn_node(fn):
+                if fn is None:
+                    return
+                fid = str(id(fn))
+                if fid in seen:
+                    return
+                seen.add(fid)
+
+                dot.node(fid, type(fn).__name__, shape="ellipse", style="filled", fillcolor="lightgray")
+
+                # Edges to next functions
+                nexts = getattr(fn, "next_functions", None)
+                if nexts:
+                    for nxt, _ in nexts:
+                        if nxt is None:
+                            continue
+                        dot.edge(str(id(nxt)), fid)
+                        add_fn_node(nxt)
+
+                # Params (AccumulateGrad has .variable)
+                var = getattr(fn, "variable", None)
+                if isinstance(var, torch.Tensor):
+                    pname = param_map.get(id(var), "param")
+                    add_tensor_node(var, pname, fill="palegreen")
+                    dot.edge(str(id(var)), fid)
+
+                # Saved tensors (optional)
+                saved = getattr(fn, "saved_tensors", None)
+                if saved:
+                    for s in saved:
+                        if isinstance(s, torch.Tensor):
+                            add_tensor_node(s, "saved", fill="white")
+                            dot.edge(str(id(s)), fid)
+
+            # ---- Add one labeled root per component loss ----
+            for name, t in loss_dict.items():
+                if not isinstance(t, torch.Tensor):
+                    continue
+                add_tensor_node(t, name, fill="orange")  # orange = named loss
+                if t.grad_fn is not None:
+                    add_fn_node(t.grad_fn)
+                    dot.edge(str(id(t.grad_fn)), str(id(t)))  # fn -> tensor
+
+            # ---- Add total loss as well (optional) ----
+            add_tensor_node(total_loss, "total_loss", fill="gold")
+            if total_loss.grad_fn is not None:
+                add_fn_node(total_loss.grad_fn)
+                dot.edge(str(id(total_loss.grad_fn)), str(id(total_loss)))
+
+            return dot
+
+
+        params = dict(self.named_parameters())
+        dot = make_dot_safe_multi_root(loss_dict=loss_dict, total_loss=total_loss, params=params)
+
+        base = f"autograd_{tag}_step{self.step:05d}"
+        dot_path = os.path.join(out_dir, base + ".dot")
+        dot.save(dot_path)
+
+        try:
+            dot.render(filename=base, directory=out_dir, format="png", cleanup=True)
+            logger.info(f"Saved autograd graph: {dot_path} (+ png)")
+        except Exception as e:
+            logger.warning(f"Saved DOT but could not render PNG: {dot_path} ({e})")
+
 
     def _dump_autograd_graph(
             self,
