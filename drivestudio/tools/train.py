@@ -440,7 +440,7 @@ def main(args):
                 image_infos=image_infos,
                 cam_infos=cam_infos,
             )
-
+            print(loss_dict)
             sem_only = {}
             sem_only["semantic_CE_loss"] = loss_dict["semantic_CE_loss"]
             trainer.backward(sem_only)
@@ -449,7 +449,9 @@ def main(args):
             print("RGB grads (should be 0):", grad_norm(rgb_param_list))
 
         testing(trainer=trainer)
-        exit(0)
+        if step > 2:
+            exit(0)
+
 
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------
