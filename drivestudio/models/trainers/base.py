@@ -1059,7 +1059,21 @@ class BasicTrainer(nn.Module):
     
     def backward(self, loss_dict: Dict[str, torch.Tensor]) -> None:
         # ----------------- backward ----------------
-        total_loss = sum(loss for loss in loss_dict.values())
+        total_loss = sum(loss_dict.values())
+
+        loss_name_map = {
+            id(v): k
+            for k, v in loss_dict.items()
+            if isinstance(v, torch.Tensor)
+        }
+
+        self._dump_autograd_graph(
+            total_loss,
+            out_dir="logs/autograd_graphs",
+            tag="train",
+            tensor_name_map=loss_name_map,
+        )
+        exit(0)
 
         self.grad_scaler.scale(total_loss).backward()
         self.optimizer_step()
@@ -1074,6 +1088,133 @@ class BasicTrainer(nn.Module):
                     new_lr = self.lr_schedulers[group["name"]](self.step)
                     group["lr"] = new_lr
 
+    def _dump_autograd_graph(
+            self,
+            loss,
+            out_dir,
+            tag="",
+            tensor_name_map=None
+        ):
+
+        def make_dot_safe(loss, params=None, tensor_name_map=None):
+            """
+            Create a graphviz.Digraph of the autograd graph for `loss`, tolerating None saved tensors.
+            Requires: pip install graphviz (python package). PNG render requires system `dot` binary.
+            """
+            from graphviz import Digraph
+
+            if params is None:
+                params = {}
+            
+            if tensor_name_map is None:
+                tensor_name_map = {}
+
+            # map leaf tensor id -> name for readability
+            param_map = {id(v): k for k, v in params.items()}
+
+            dot = Digraph(format="png", graph_attr={"rankdir": "LR"})
+            seen = set()
+
+            def add_tensor_node(t: torch.Tensor, label: str = None):
+                if t is None:
+                    return
+
+                tid = str(id(t))
+                if tid in seen:
+                    return
+                seen.add(tid)
+
+                # Priority 1: loss_dict key name
+                if id(t) in tensor_name_map:
+                    name = tensor_name_map[id(t)]
+                else:
+                    # Priority 2: parameter name
+                    name = param_map.get(id(t), "")
+
+                # Shape
+                try:
+                    shape = tuple(t.size())
+                except Exception:
+                    shape = "?"
+
+                if label is None:
+                    if name:
+                        node_label = f"{name}\nTensor {shape}"
+                    else:
+                        node_label = f"Tensor {shape}"
+                else:
+                    node_label = label
+                
+                if id(t) in tensor_name_map:
+                    color = "orange"
+                else:
+                    color = "lightblue"
+
+                dot.node(tid, node_label, shape="box", style="filled", fillcolor=color)
+
+
+            def add_fn_node(fn):
+                if fn is None:
+                    return
+                fid = str(id(fn))
+                if fid in seen:
+                    return
+                seen.add(fid)
+
+                dot.node(fid, type(fn).__name__, shape="ellipse", style="filled", fillcolor="lightgray")
+
+                # Recurse to next functions
+                nexts = getattr(fn, "next_functions", None)
+                if nexts:
+                    for nxt, _ in nexts:
+                        if nxt is None:
+                            continue
+                        dot.edge(str(id(nxt)), fid)
+                        add_fn_node(nxt)
+
+                # Some autograd nodes keep a .variable (e.g., AccumulateGrad)
+                var = getattr(fn, "variable", None)
+                if isinstance(var, torch.Tensor):
+                    add_tensor_node(var, label=f"{param_map.get(id(var), '')}\n{tuple(var.size())}")
+                    dot.edge(str(id(var)), fid)
+
+                # Some nodes have saved tensors (may include None / weird objects)
+                saved = getattr(fn, "saved_tensors", None)
+                if saved:
+                    for s in saved:
+                        if isinstance(s, torch.Tensor):
+                            add_tensor_node(s, label=f"saved\n{tuple(s.size())}")
+                            dot.edge(str(id(s)), fid)
+
+            # Start: loss tensor -> grad_fn
+            add_tensor_node(loss, label=f"loss\n{tuple(loss.size()) if hasattr(loss, 'size') else ''}")
+            add_fn_node(loss.grad_fn)
+            if loss.grad_fn is not None:
+                dot.edge(str(id(loss.grad_fn)), str(id(loss)))
+
+            return dot
+    
+        os.makedirs(out_dir, exist_ok=True)
+        step = getattr(self, "step", 0)
+
+        params = dict(self.named_parameters())
+
+        dot = make_dot_safe(loss, params=params, tensor_name_map=tensor_name_map)
+
+        base = f"autograd{('_' + tag) if tag else ''}_step{step:05d}"
+        dot_path = os.path.join(out_dir, base + ".dot")
+        png_path = os.path.join(out_dir, base + ".png")
+
+        # always save .dot
+        dot.save(dot_path)
+        logger.info(f"Saved autograd DOT: {dot_path}")
+
+        # optional render to png (requires system graphviz 'dot')
+        try:
+            dot.render(filename=base, directory=out_dir, format="png", cleanup=True)
+            logger.info(f"Saved autograd PNG: {png_path}")
+        except Exception as e:
+            logger.warning(f"Could not render PNG (system graphviz missing?). DOT is saved. ({e})")
 
     def compute_losses(
         self,

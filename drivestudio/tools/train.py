@@ -400,59 +400,6 @@ def main(args):
         # print summary every N steps (e.g., 50)
         print_timing_summary(step=step, every=10000, reset_after_print=False)  # set True to roll a moving window
 
-        def testing(trainer):
-            def grad_norm(params):
-                s = 0.0
-                for p in params:
-                    if p.grad is not None:
-                        s += float(p.grad.abs().sum().item())
-                return s
-
-            rgb_param_list = []
-            sem_param_list = []
-            for name, model in trainer.models.items():
-                if "Semantic" in name:
-                    sem_param_list += list(model.parameters())
-                else:
-                    rgb_param_list += list(model.parameters())
-
-            # --- RGB-only backward ---
-            trainer.optimizer_zero_grad()
-            outputs = trainer(image_infos, cam_infos)
-            loss_dict = trainer.compute_losses(
-                outputs=outputs,
-                image_infos=image_infos,
-                cam_infos=cam_infos,
-            )
-            rgb_only = {}
-            rgb_only["ssim_loss"] = loss_dict["ssim_loss"]
-            trainer.backward(rgb_only)
-
-            print("RGB grads:", grad_norm(rgb_param_list))
-            print("SEM grads (should be 0):", grad_norm(sem_param_list))
-
-            # --- SEM-only backward ---
-            trainer.optimizer_zero_grad()
-            outputs = trainer(image_infos, cam_infos)
-            outputs = trainer(image_infos, cam_infos)
-            loss_dict = trainer.compute_losses(
-                outputs=outputs,
-                image_infos=image_infos,
-                cam_infos=cam_infos,
-            )
-            print(loss_dict)
-            sem_only = {}
-            sem_only["semantic_CE_loss"] = loss_dict["semantic_CE_loss"]
-            trainer.backward(sem_only)
-
-            print("SEM grads:", grad_norm(sem_param_list))
-            print("RGB grads (should be 0):", grad_norm(rgb_param_list))
-
-        testing(trainer=trainer)
-        if step > 2:
-            exit(0)
-
-
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------
         with torch.no_grad():
