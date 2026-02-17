@@ -4,11 +4,11 @@
 #SBATCH --time=04:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
-#SBATCH --mem=48G
+#SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-19%3
-#SBATCH --job-name=streetgsGaussiansL2
+#SBATCH --array=0-119%10
+#SBATCH --job-name=MultigsL2vsentropy
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
 
@@ -30,12 +30,18 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 # ---- Define your 10 scene indices here (edit to match what you want) ----
 SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.000001_Focal_0,001_N2.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.000003_Focal_0,001_N2.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.0001_Focal_0,001_N2.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.00001_Focal_0,001_N2.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.0003_Focal_0,001_N2.yaml
-# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/l2/streetgsSemantic_l2_0.00003_Focal_0,001_N2.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multil2/MultigsSemantic_l2_0.001_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multil2/MultigsSemantic_l2_0.0002_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multil2/MultigsSemantic_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multil2/MultigsSemantic_l2_0.000008_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multil2/MultigsSemantic_l2_0.0000016_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multil2/MultigsSemantic_l2_0.00000032_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multientropy/MultigsSemantic_entropy_0.001_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multientropy/MultigsSemantic_entropy_0.0002_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multientropy/MultigsSemantic_entropy_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multientropy/MultigsSemantic_entropy_0.000008_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multientropy/MultigsSemantic_entropy_0.0000016_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multientropy/MultigsSemantic_entropy_0.00000032_Focal_0,0016.yaml
 )
 
 num_scenes=${#SCENES[@]}
@@ -80,7 +86,7 @@ srun apptainer exec --nv "$IMG" bash -lc "
   python tools/train.py \
     --config_file ${config_file} \
     --output_root /tudelft.net/staff-umbrella/hchassagnette/Workspace/output \
-    --project ThesisResults \
+    --project ThesisResultsV2 \
     --run_name ${run_name} \
     dataset=nuscenes/6cams \
     data.scene_idx=${scene_idx} \
