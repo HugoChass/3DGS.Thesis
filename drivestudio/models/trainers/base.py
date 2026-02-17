@@ -880,6 +880,9 @@ class BasicTrainer(nn.Module):
             opacity = alpha_rgb[..., None]          # [H, W, 1]
             sem_opacity = alpha_sem[..., None]
 
+            idx_rgb = mask_rgb.nonzero(as_tuple=False).squeeze(1)  # [N_rgb]
+            idx_sem = mask_sem.nonzero(as_tuple=False).squeeze(1)  # [N_sem]
+
             mask_rgb = (gs.semantics_bool == 0).all(dim=1)
             mask_sem = (gs.semantics_bool == 1).all(dim=1)
             assert (mask_rgb | mask_sem).all(), "Some gaussians belong to neither pass"
