@@ -439,6 +439,7 @@ def main(args):
             print("RGB grads (should be 0):", grad_norm(rgb_param_list))
 
         testing(trainer=trainer)
+        exit(0)
 
         #----------------------------------------------------------------------------
         #-------------------------------  logging  ----------------------------------
