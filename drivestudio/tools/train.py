@@ -418,22 +418,32 @@ def main(args):
 
             # --- RGB-only backward ---
             trainer.optimizer_zero_grad()
-            outputs = trainer.forward(...)
-            losses = trainer.compute_losses(outputs, image_infos, cam_infos)
-
-            rgb_only = losses["rgb_loss"] + losses["ssim_loss"]  # plus whatever else you consider RGB-only
-            rgb_only.backward()
+            outputs = trainer(image_infos, cam_infos)
+            loss_dict = trainer.compute_losses(
+                outputs=outputs,
+                image_infos=image_infos,
+                cam_infos=cam_infos,
+            )
+            rgb_only = {}
+            rgb_only["ssim_loss"] = loss_dict["ssim_loss"]
+            trainer.backward(rgb_only)
 
             print("RGB grads:", grad_norm(rgb_param_list))
             print("SEM grads (should be 0):", grad_norm(sem_param_list))
 
             # --- SEM-only backward ---
             trainer.optimizer_zero_grad()
-            outputs = trainer.forward(...)
-            losses = trainer.compute_losses(outputs, image_infos, cam_infos)
+            outputs = trainer(image_infos, cam_infos)
+            outputs = trainer(image_infos, cam_infos)
+            loss_dict = trainer.compute_losses(
+                outputs=outputs,
+                image_infos=image_infos,
+                cam_infos=cam_infos,
+            )
 
-            sem_only = losses["semantic_CE_loss"]  # etc
-            sem_only.backward()
+            sem_only = {}
+            sem_only["semantic_CE_loss"] = loss_dict["semantic_CE_loss"]
+            trainer.backward(sem_only)
 
             print("SEM grads:", grad_norm(sem_param_list))
             print("RGB grads (should be 0):", grad_norm(rgb_param_list))
