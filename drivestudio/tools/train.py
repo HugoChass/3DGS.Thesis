@@ -351,52 +351,6 @@ def main(args):
             if isinstance(v, torch.Tensor):
                 cam_infos[k] = v.cuda(non_blocking=True)
 
-        def clear_all_grads(module: torch.nn.Module):
-            for p in module.parameters():
-                p.grad = None
-
-        def top_grad_params(module: torch.nn.Module, topk=30):
-            items = []
-            for name, p in module.named_parameters():
-                if p.grad is None:
-                    continue
-                g = p.grad
-                # handle sparse grads too
-                if g.is_sparse:
-                    val = g._values().abs().sum().item()
-                else:
-                    val = g.abs().sum().item()
-                if val > 0:
-                    items.append((val, name, tuple(p.shape), p.requires_grad))
-            items.sort(reverse=True, key=lambda x: x[0])
-            return items[:topk]
-
-        clear_all_grads(trainer)  # trainer is your BasicTrainer
-
-        outputs = trainer.forward(image_infos, cam_infos)
-        losses  = trainer.compute_losses(outputs, image_infos, cam_infos)
-
-        rgb_only = losses["rgb_loss"] + losses["ssim_loss"]  # ONLY these; no regs, no depth, etc.
-        rgb_only.backward()
-
-        print("Top grads after RGB-only backward:")
-        for val, name, shape, req in top_grad_params(trainer, topk=40):
-            print(f"{val:12.6e}  {name}  {shape}")
-
-        # ---- now semantic-only ----
-        clear_all_grads(trainer)
-
-        outputs = trainer.forward(image_infos, cam_infos)
-        losses  = trainer.compute_losses(outputs, image_infos, cam_infos)
-
-        sem_only = losses["semantic_CE_loss"]  # or whatever semantic term you want
-        sem_only.backward()
-
-        print("Top grads after SEM-only backward:")
-        for val, name, shape, req in top_grad_params(trainer, topk=40):
-            print(f"{val:12.6e}  {name}  {shape}")
-        exit(0)
-
         # forward & backward
         t0 = time.perf_counter()
         outputs = trainer(image_infos, cam_infos)
