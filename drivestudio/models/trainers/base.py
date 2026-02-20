@@ -1128,7 +1128,7 @@ class BasicTrainer(nn.Module):
             cfg = self.semantic_loss_cfg
 
             # Toggles
-            use_ce          = cfg.get("use_ce", True)
+            use_ce          = cfg.get("use_ce", False)
             use_focal       = cfg.get("use_focal", False)
             use_contrastive = cfg.get("use_contrastive", False)
             use_reg         = cfg.get("use_reg", False)
