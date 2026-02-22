@@ -16,7 +16,7 @@ trainer:
     absgrad: true # whether to use absolute gradient for rendering, supported by gsplat kernel
     sparse_grad: false # whether to use sparse gradient for rendering, supported by gsplat kernel
     batch_size: 1 # batch size for rendering, currently only support 1
-    nbr_pass: 2 # 1 or 2 pass combine/seperate rgb semantic render
+    nbr_pass: 1 # 1 or 2 pass combine/seperate rgb semantic render
   losses:
     rgb:
       w: 0.8
@@ -25,11 +25,6 @@ trainer:
     mask:
       w: 0.05
       opacity_loss_type: bce # choose from [bce, safe_bce]
-    depth:
-      w: 0.01 # weight of depth loss
-      inverse_depth: False # whether to use inverse depth, NOTE that when set to True, must normalize=True
-      normalize: False # whether to normalize depth loss
-      loss_type: l1 # choose from ["l1", "l2"]
     affine:
       w: 0.00001 # weight of affine regularization
     semantics:
@@ -37,13 +32,13 @@ trainer:
       full_weight_step: 0
       use_ce: False
       use_focal: True
-      use_contrastive: True
+      use_contrastive: False
       use_reg: True
       reg_type: entropy
       loss_ce_w: 1
-      loss_focal_w: 0.001
+      loss_focal_w: 0.0016
       loss_contrastive_w: 0.001
-      loss_reg_w: 0.0003
+      loss_reg_w: 0.000008
       class_weight_mode: null        # or "inv_freq" or null
       class_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]   # only used if mode == "manual"
       inv_freq_eps: 1e-6                 # numerical stability
