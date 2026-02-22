@@ -3,11 +3,11 @@
 #SBATCH --qos=short
 #SBATCH --time=04:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=6
+#SBATCH --cpus-per-task=2
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-59%10
+#SBATCH --array=0-19%10
 #SBATCH --job-name=MultigsDepth
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -31,11 +31,11 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_1_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,2_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,04_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,008_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,0016_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,0032_l2_0.00004_Focal_0,0016.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,2_l2_0.00004_Focal_0,0016.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,04_l2_0.00004_Focal_0,0016.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,0016_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,00032_l2_0.00004_Focal_0,0016.yaml
 )
 
 num_scenes=${#SCENES[@]}
