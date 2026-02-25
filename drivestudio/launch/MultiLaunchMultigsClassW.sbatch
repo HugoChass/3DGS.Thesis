@@ -7,7 +7,7 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-29%10
+#SBATCH --array=0-39%10
 #SBATCH --job-name=MultigsClassW
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -31,6 +31,7 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multiclassw/MultigsSemantic_inverseW_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multiclassw/MultigsSemantic_inverseW_depth_0,008_l2_0.00004_CE_0,0016.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multiclassw/MultigsSemantic_background_depth_0,008_l2_0.00004_Focal_0,0016.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multiclassw/MultigsSemantic_foreground_depth_0,008_l2_0.00004_Focal_0,0016.yaml
 )

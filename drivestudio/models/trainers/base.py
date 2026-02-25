@@ -1271,6 +1271,7 @@ class BasicTrainer(nn.Module):
 
                     if class_weights_tensor is not None:
                         per_class_w = class_weights_tensor[gt_lab].unsqueeze(1)  # [N, 1]
+                        alpha_factor = 1.0
                     else:
                         per_class_w = 1.0
 
