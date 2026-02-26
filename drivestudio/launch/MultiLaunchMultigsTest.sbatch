@@ -7,7 +7,7 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-1%2
+#SBATCH --array=0-2%3
 #SBATCH --job-name=MultigsTest
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -32,6 +32,7 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 SCENES=(000)
 CONFIGS=(
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidepth/MultigsSemantic_depth_0,008_l2_0.00004_CE_0,0016.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/entropy/streetgsSemantic_entropy_0.000008_Focal_0,0016.yaml
 )
 
