@@ -1151,25 +1151,28 @@ class BasicTrainer(nn.Module):
                     return None
                 return 1.0 + bd_lambda * bd_w
 
-            def compute_boundary_mask(gt: torch.Tensor, ignore_index: int = -1):
+            def compute_boundary_mask_2d(gt: torch.Tensor, ignore_index: int = None):
                 """
-                gt: [B, H, W] long
+                gt: [H, W] long tensor of class labels
+
                 Returns:
-                    bd_mask: [B, H, W] float in {0,1}
+                    bd_mask: [H, W] float tensor in {0,1}
                 """
-                B, H, W = gt.shape
 
-                # Pad to compare neighbors safely
-                gt_pad = F.pad(gt.unsqueeze(1).float(), (1,1,1,1), mode="replicate").squeeze(1)
+                H, W = gt.shape
 
-                center = gt_pad[:, 1:-1, 1:-1]
+                # Pad so neighbor comparisons are safe at borders
+                gt_pad = F.pad(gt.unsqueeze(0).unsqueeze(0).float(),
+                            (1, 1, 1, 1),
+                            mode="replicate").squeeze()
 
-                left   = gt_pad[:, 1:-1, :-2]
-                right  = gt_pad[:, 1:-1, 2:]
-                up     = gt_pad[:, :-2, 1:-1]
-                down   = gt_pad[:, 2:, 1:-1]
+                center = gt_pad[1:-1, 1:-1]
+                left   = gt_pad[1:-1, :-2]
+                right  = gt_pad[1:-1, 2:]
+                up     = gt_pad[:-2, 1:-1]
+                down   = gt_pad[2:, 1:-1]
 
-                # Mark boundary if any neighbor has different label
+                # Mark boundary where any neighbor differs
                 bd = (
                     (center != left) |
                     (center != right) |
@@ -1177,20 +1180,21 @@ class BasicTrainer(nn.Module):
                     (center != down)
                 )
 
-                # Remove ignored labels
                 if ignore_index is not None:
                     valid = center != ignore_index
                     bd = bd & valid
 
                 return bd.float()
 
-            def dilate_mask(mask: torch.Tensor, kernel_size: int = 3):
-                """
-                mask: [B, H, W] float
-                """
-                mask = mask.unsqueeze(1)  # [B,1,H,W]
-                dilated = F.max_pool2d(mask, kernel_size=kernel_size, stride=1, padding=kernel_size//2)
-                return dilated.squeeze(1)
+            def dilate_mask_2d(mask: torch.Tensor, kernel_size: int = 3):
+                mask = mask.unsqueeze(0).unsqueeze(0)  # [1,1,H,W]
+                dilated = F.max_pool2d(
+                    mask,
+                    kernel_size=kernel_size,
+                    stride=1,
+                    padding=kernel_size // 2
+                )
+                return dilated.squeeze()
 
             cfg = self.semantic_loss_cfg
 
@@ -1241,11 +1245,11 @@ class BasicTrainer(nn.Module):
             warmup_start = cfg.get("warmup_start", 5000)
             full_weight_step = cfg.get("full_weight_step", 15000)
 
-            bd_w = compute_boundary_mask(gt_semantics, ignore_index=18)  # or whatever you mask
-            bd_w = dilate_mask(bd_w, kernel_size=3)
+            bd_w = compute_boundary_mask_2d(gt_semantics, ignore_index=18)  # or whatever you mask
+            bd_w = dilate_mask_2d(bd_w, kernel_size=3)
             bd_w_flat = bd_w.view(-1)
             use_boundary_weighting = True
-            bd_lambda = 5
+            bd_lambda = 3
 
             def apply_warmup(base_weight: float) -> float:
                 if base_weight <= 0.0:
