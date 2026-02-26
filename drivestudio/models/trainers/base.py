@@ -1125,6 +1125,73 @@ class BasicTrainer(nn.Module):
             
         # semantic loss
         if self.semantic_loss_cfg is not None:
+
+            def weighted_mean(loss_per_elem: torch.Tensor, weight_per_elem: torch.Tensor, eps: float = 1e-6):
+                """
+                loss_per_elem: [N] or [N,1]
+                weight_per_elem: same shape broadcastable to loss_per_elem
+                Returns: scalar
+                """
+                # ensure same shape
+                if loss_per_elem.ndim == 2 and loss_per_elem.shape[1] == 1:
+                    loss_per_elem = loss_per_elem.squeeze(1)
+                if weight_per_elem.ndim == 2 and weight_per_elem.shape[1] == 1:
+                    weight_per_elem = weight_per_elem.squeeze(1)
+
+                num = (weight_per_elem * loss_per_elem).sum()
+                den = weight_per_elem.sum().clamp_min(eps)
+                return num / den
+
+            def make_boundary_multiplier(bd_w: torch.Tensor, bd_lambda: float):
+                """
+                bd_w: [N] in {0,1} (or [0,1]) where 1 indicates boundary band
+                returns multiplier w: [N] = 1 + bd_lambda*bd_w
+                """
+                if bd_w is None:
+                    return None
+                return 1.0 + bd_lambda * bd_w
+
+            def compute_boundary_mask(gt: torch.Tensor, ignore_index: int = -1):
+                """
+                gt: [B, H, W] long
+                Returns:
+                    bd_mask: [B, H, W] float in {0,1}
+                """
+                B, H, W = gt.shape
+
+                # Pad to compare neighbors safely
+                gt_pad = F.pad(gt.unsqueeze(1).float(), (1,1,1,1), mode="replicate").squeeze(1)
+
+                center = gt_pad[:, 1:-1, 1:-1]
+
+                left   = gt_pad[:, 1:-1, :-2]
+                right  = gt_pad[:, 1:-1, 2:]
+                up     = gt_pad[:, :-2, 1:-1]
+                down   = gt_pad[:, 2:, 1:-1]
+
+                # Mark boundary if any neighbor has different label
+                bd = (
+                    (center != left) |
+                    (center != right) |
+                    (center != up) |
+                    (center != down)
+                )
+
+                # Remove ignored labels
+                if ignore_index is not None:
+                    valid = center != ignore_index
+                    bd = bd & valid
+
+                return bd.float()
+
+            def dilate_mask(mask: torch.Tensor, kernel_size: int = 3):
+                """
+                mask: [B, H, W] float
+                """
+                mask = mask.unsqueeze(1)  # [B,1,H,W]
+                dilated = F.max_pool2d(mask, kernel_size=kernel_size, stride=1, padding=kernel_size//2)
+                return dilated.squeeze(1)
+
             cfg = self.semantic_loss_cfg
 
             # Toggles
@@ -1174,6 +1241,12 @@ class BasicTrainer(nn.Module):
             warmup_start = cfg.get("warmup_start", 5000)
             full_weight_step = cfg.get("full_weight_step", 15000)
 
+            bd_w = compute_boundary_mask(gt_semantics, ignore_index=18)  # or whatever you mask
+            bd_w = dilate_mask(bd_w, kernel_size=3)
+            bd_w_flat = bd_w.view(-1)
+            use_boundary_weighting = True
+            bd_lambda = 5
+
             def apply_warmup(base_weight: float) -> float:
                 if base_weight <= 0.0:
                     return 0.0
@@ -1221,66 +1294,88 @@ class BasicTrainer(nn.Module):
             # else: keep class_weights_tensor = None (no per-class weighting)
 
             # ------------------------------------------------------------------
-            # 1) CE loss (already implemented, just slightly refactored)
+            # 1) CE loss (with optional boundary weighting)
             # ------------------------------------------------------------------
             if use_ce:
                 if has_labeled:
-                    logits_lab = logits_flat[idx]    # [N, K]
-                    gt_lab     = gt_flat[idx].long() # [N]
+                    logits_lab = logits_flat[idx]          # [N, K]
+                    gt_lab     = gt_flat[idx].long()       # [N]
 
-                    # IMPORTANT: ensure gt_lab in [0, K-1]; 17 & 18 were masked out
-                    loss_ce = F.cross_entropy(
+                    # Optional boundary weights aligned with flattened labels
+                    # bd_w_flat should be [N_total], so bd_w_lab becomes [N]
+                    if use_boundary_weighting:  # bool flag
+                        bd_w_lab = bd_w_flat[idx].to(logits_lab.dtype)  # [N]
+                        bd_mult  = make_boundary_multiplier(bd_w_lab, bd_lambda)  # [N]
+                    else:
+                        bd_mult = None
+
+                    # Per-element CE
+                    ce_per = F.cross_entropy(
                         logits_lab, gt_lab,
                         weight=class_weights_tensor,  # None or [K]
-                        reduction="mean"
+                        reduction="none"              # [N]
                     )
+
+                    # Apply boundary multiplier as a *reduction* weight
+                    if bd_mult is not None:
+                        loss_ce = weighted_mean(ce_per, bd_mult)
+                    else:
+                        loss_ce = ce_per.mean()
                 else:
                     loss_ce = logits_flat.new_tensor(0.0)
 
                 semce_weight = apply_warmup(semce_w)
                 sem_losses["semantic_CE_loss"] = semce_weight * loss_ce
 
+
             # ------------------------------------------------------------------
-            # 2) Focal loss (same logits / labels as CE, better for class imbalance)
+            # 2) Focal loss (with optional boundary weighting)
             # ------------------------------------------------------------------
             if use_focal:
                 if has_labeled:
-                    logits_lab = logits_flat[idx]    # [N, K]
-                    gt_lab     = gt_flat[idx].long() # [N]
+                    logits_lab = logits_flat[idx]          # [N, K]
+                    gt_lab     = gt_flat[idx].long()       # [N]
 
-                    # standard focal loss on logits_lab, gt_lab
-                    # Compute softmax probabilities
+                    # Optional boundary weights
+                    if use_boundary_weighting:
+                        bd_w_lab = bd_w_flat[idx].to(logits_lab.dtype)  # [N]
+                        bd_mult  = make_boundary_multiplier(bd_w_lab, bd_lambda)  # [N]
+                    else:
+                        bd_mult = None
+
+                    # Softmax probabilities
                     log_probs = F.log_softmax(logits_lab, dim=-1)             # [N, K]
                     probs     = log_probs.exp()                               # [N, K]
 
-                    # Gather probabilities of the true class
-                    gt_lab_unsqueezed = gt_lab.unsqueeze(1)                  # [N, 1]
-                    p_t = probs.gather(1, gt_lab_unsqueezed).clamp_min(1e-6) # [N, 1]
+                    gt_lab_unsqueezed = gt_lab.unsqueeze(1)                   # [N, 1]
+                    p_t = probs.gather(1, gt_lab_unsqueezed).clamp_min(1e-6)  # [N, 1]
 
-                    # Focal weight
-                    focal_weight = (1.0 - p_t) ** focal_gamma                # [N, 1]
+                    focal_weight = (1.0 - p_t) ** focal_gamma                 # [N, 1]
 
-                    # Optional class-balancing alpha: assume scalar alpha for foreground,
-                    # we apply it to all classes for simplicity; you can extend this to per-class alpha.
-                    alpha_factor = focal_alpha
+                    # CE term (per element)
+                    ce_term = F.nll_loss(log_probs, gt_lab, reduction="none").unsqueeze(1)  # [N, 1]
 
-                    # CE term (negative log-likelihood)
-                    ce_term = F.nll_loss(
-                        log_probs, gt_lab, reduction="none"
-                    ).unsqueeze(1)                                           # [N, 1]
-
+                    # Class weighting handling (same as your code, but per-element)
                     if class_weights_tensor is not None:
                         per_class_w = class_weights_tensor[gt_lab].unsqueeze(1)  # [N, 1]
                         alpha_factor = 1.0
                     else:
                         per_class_w = 1.0
+                        alpha_factor = focal_alpha  # scalar
 
-                    loss_focal = (per_class_w * alpha_factor * focal_weight * ce_term).mean()
+                    focal_per = (per_class_w * alpha_factor * focal_weight * ce_term)  # [N, 1]
+
+                    # Reduce with optional boundary multiplier
+                    if bd_mult is not None:
+                        loss_focal = weighted_mean(focal_per, bd_mult.unsqueeze(1))
+                    else:
+                        loss_focal = focal_per.mean()
                 else:
                     loss_focal = logits_flat.new_tensor(0.0)
 
                 semfocal_weight = apply_warmup(semfocal_w)
                 sem_losses["semantic_focal_loss"] = semfocal_weight * loss_focal
+
 
             # ------------------------------------------------------------------
             # 3) Contrastive / feature-alignment loss (global, no broadcasting)
