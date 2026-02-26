@@ -1245,11 +1245,13 @@ class BasicTrainer(nn.Module):
             warmup_start = cfg.get("warmup_start", 5000)
             full_weight_step = cfg.get("full_weight_step", 15000)
 
-            bd_w = compute_boundary_mask_2d(gt_semantics, ignore_index=18)  # or whatever you mask
-            bd_w = dilate_mask_2d(bd_w, kernel_size=3)
-            bd_w_flat = bd_w.view(-1)
-            use_boundary_weighting = True
-            bd_lambda = 3
+            use_boundary_weighting = cfg.get("boundary", False)
+            if use_boundary_weighting:
+                bd_w = compute_boundary_mask_2d(gt_semantics, ignore_index=18)  # or whatever you mask
+                bd_w = dilate_mask_2d(bd_w, kernel_size=7)
+                bd_w_flat = bd_w.view(-1)
+                
+                bd_lambda = 5
 
             def apply_warmup(base_weight: float) -> float:
                 if base_weight <= 0.0:
