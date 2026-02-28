@@ -7,8 +7,8 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-3%4
-#SBATCH --job-name=MultigsWarmup
+#SBATCH --array=0-39%10
+#SBATCH --job-name=MultigsDensification
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
 
@@ -28,11 +28,12 @@ cd /tudelft.net/staff-umbrella/hchassagnette/Workspace
 IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 
 # ---- Define your 10 scene indices here (edit to match what you want) ----
-# SCENES=(000 001 002 003 004 005 006 007 008 009)
-SCENES=(001 005)
+SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multiwarmup/MultigsSemantic_Warmup_0-15_depth_0,008_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multiwarmup/MultigsSemantic_Warmup_0-25_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_c_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_s_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_d_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_csd_depth_0,008_l2_0.00004_Focal_0,0016.yaml
 )
 
 num_scenes=${#SCENES[@]}

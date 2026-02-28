@@ -41,13 +41,14 @@ trainer:
       use_reg: True
       reg_type: entropy
       loss_ce_w: 1
-      loss_focal_w: 0.001
+      loss_focal_w: 0.0016
       loss_contrastive_w: 0.1
-      loss_reg_w: 0.0003
+      loss_reg_w: 0.000008
       class_weight_mode: null        # or "inv_freq" or null
       class_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]   # only used if mode == "manual"
       inv_freq_eps: 1e-6                 # numerical stability
       normalize_class_weights: true      # optional, keep average weight ≈ 1
+      boundary: False
   res_schedule:
     double_steps: 250 # training starts at 1/d resolution, every n steps this is doubled
     downscale_times: 2 # at the beginning, resolution is 1/2^d, where d is this number
@@ -87,17 +88,17 @@ trainer:
     sh_degree: 3                  # sh degree for gaussians
     # enable/disable semantic influence
     use_semantic_cull: True
-    use_semantic_split: True
-    use_semantic_dup: True
+    use_semantic_split: False
+    use_semantic_dup: False
     # semantic importance construction
     semantic_inv_freq_eps: 1e-6
     semantic_normalize_inv_freq: True
     semantic_conf_power: 1.0           # how strongly confidence affects importance
     semantic_densification_class_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,]   # optional
     # thresholds in importance space (~1.0 ≈ "average")
-    semantic_cull_importance_thresh: 0.25
-    semantic_split_importance_thresh: 0.25
-    semantic_dup_importance_thresh: 0.25
+    semantic_cull_importance_thresh: 1.0
+    semantic_split_importance_thresh: 1.0
+    semantic_dup_importance_thresh: 1.0
 
 
 # ------------- Model ------------ #
