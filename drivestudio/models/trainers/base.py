@@ -853,6 +853,9 @@ class BasicTrainer(nn.Module):
 
             opacities = gs_sem.opacities.squeeze()
 
+            # c2w_sem = cam.camtoworlds.detach()
+            # viewmat_sem = torch.linalg.inv(c2w_sem)[None, ...]
+
             renders_sem, alphas_sem, info_sem = rasterization(
                 means=gs_sem.means,
                 quats=gs_sem.quats,
@@ -1250,8 +1253,8 @@ class BasicTrainer(nn.Module):
                 bd_w = compute_boundary_mask_2d(gt_semantics, ignore_index=18)  # or whatever you mask
                 bd_w = dilate_mask_2d(bd_w, kernel_size=7)
                 bd_w_flat = bd_w.view(-1)
-                
-                bd_lambda = 5
+                bd_lambda = cfg.get("boundary_lambda", 4)
+
 
             def apply_warmup(base_weight: float) -> float:
                 if base_weight <= 0.0:
