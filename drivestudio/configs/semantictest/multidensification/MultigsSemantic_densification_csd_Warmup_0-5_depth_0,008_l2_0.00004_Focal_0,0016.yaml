@@ -34,7 +34,7 @@ trainer:
       w: 0.00001 # weight of affine regularization
     semantics:
       warmup_start: 0
-      full_weight_step: 0
+      full_weight_step: 5000
       use_ce: False
       use_focal: True
       use_contrastive: False

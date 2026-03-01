@@ -30,10 +30,10 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 # ---- Define your 10 scene indices here (edit to match what you want) ----
 SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_c_depth_0,008_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_s_depth_0,008_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_d_depth_0,008_l2_0.00004_Focal_0,0016.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_csd_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_c_Warmup_0-5_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_s_Warmup_0-5_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_d_Warmup_0-5_depth_0,008_l2_0.00004_Focal_0,0016.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multidensification/MultigsSemantic_densification_csd_Warmup_0-5_depth_0,008_l2_0.00004_Focal_0,0016.yaml
 )
 
 num_scenes=${#SCENES[@]}
