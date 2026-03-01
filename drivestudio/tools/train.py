@@ -369,6 +369,7 @@ def main(args):
 
         unknown_error = False
         sem_unknown_error = False
+        sem_depth_unknow_error = False
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
                 if k == 'Background_sharp_shape_reg':
