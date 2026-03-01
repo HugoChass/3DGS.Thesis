@@ -375,6 +375,8 @@ def main(args):
                     unknown_error = True
                 elif k == 'SemanticBackground_sharp_shape_reg':
                     sem_unknown_error = True
+                elif k == "sem_depth_loss":
+                    sem_depth_unknow_error = True
                 else:
                     raise ValueError(f"NaN detected in loss {k} at step {step}")
             if torch.isinf(v).any():
@@ -384,6 +386,8 @@ def main(args):
             loss_dict.pop('Background_sharp_shape_reg', None)
         if sem_unknown_error:
             loss_dict.pop('SemanticBackground_sharp_shape_reg', None)
+        if sem_depth_unknow_error:
+            loss_dict.pop('sem_depth_loss', None)
 
 
         t0 = time.perf_counter()
