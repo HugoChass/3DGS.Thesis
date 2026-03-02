@@ -51,7 +51,7 @@ trainer:
       inv_freq_eps: 1e-6                 # numerical stability
       normalize_class_weights: true      # optional, keep average weight ≈ 1
       boundary: True
-      boundary_lambda: 8
+      boundary_lambda: 16
   res_schedule:
     double_steps: 250 # training starts at 1/d resolution, every n steps this is doubled
     downscale_times: 2 # at the beginning, resolution is 1/2^d, where d is this number
@@ -90,9 +90,9 @@ trainer:
     stop_split_at: 15000          # stop splitting at this step
     sh_degree: 3                  # sh degree for gaussians
     # enable/disable semantic influence
-    use_semantic_cull: False
-    use_semantic_split: False
-    use_semantic_dup: False
+    use_semantic_cull: True
+    use_semantic_split: True
+    use_semantic_dup: True
     # semantic importance construction
     semantic_inv_freq_eps: 1e-6
     semantic_normalize_inv_freq: True
