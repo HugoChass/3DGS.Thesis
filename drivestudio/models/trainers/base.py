@@ -853,8 +853,8 @@ class BasicTrainer(nn.Module):
 
             opacities = gs_sem.opacities.squeeze()
 
-            c2w_sem = cam.camtoworlds.detach()
-            viewmat_sem = torch.linalg.inv(c2w_sem)[None, ...]
+            # c2w_sem = cam.camtoworlds.detach()
+            # viewmat_sem = torch.linalg.inv(c2w_sem)[None, ...]
 
             renders_sem, alphas_sem, info_sem = rasterization(
                 means=gs_sem.means,
@@ -862,7 +862,7 @@ class BasicTrainer(nn.Module):
                 scales=gs_sem.scales,
                 opacities=opacities,
                 colors=sem_colors,  # [N, C]
-                viewmats=viewmat_sem,
+                viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],
                 Ks=cam.Ks[None, ...],
                 width=cam.W,
                 height=cam.H,
