@@ -7,7 +7,7 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mail-type=END
-#SBATCH --array=0-79%10
+#SBATCH --array=0-9%10
 #SBATCH --job-name=MultigsSemCount
 #SBATCH --output=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.out
 #SBATCH --error=/tudelft.net/staff-umbrella/hchassagnette/Workspace/logs/%x_%A_%a.err
@@ -30,14 +30,14 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 # ---- Define your 10 scene indices here (edit to match what you want) ----
 SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_100000.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_200000.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_300000.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_400000.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_500000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_100000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_200000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_300000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_400000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_500000.yaml
 /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_600000.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_700000.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_800000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_700000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_800000.yaml
 )
 
 num_scenes=${#SCENES[@]}
