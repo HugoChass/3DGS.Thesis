@@ -30,12 +30,14 @@ IMG=/tudelft.net/staff-umbrella/hchassagnette/Workspace/drivestudio.sif
 # ---- Define your 10 scene indices here (edit to match what you want) ----
 SCENES=(000 001 002 003 004 005 006 007 008 009)
 CONFIGS=(
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_10000.yaml
+/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_50000.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_100000.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_200000.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_300000.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_400000.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_500000.yaml
-/tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_600000.yaml
+# /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_600000.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_700000.yaml
 # /tudelft.net/staff-umbrella/hchassagnette/Workspace/3DGS.Thesis/drivestudio/configs/semantictest/multicapacity/MultigsSemantic_final_SemCount_800000.yaml
 )
