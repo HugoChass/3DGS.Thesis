@@ -34,7 +34,7 @@ trainer:
       w: 0.00001 # weight of affine regularization
     semantics:
       warmup_start: 0
-      full_weight_step: 5000
+      full_weight_step: 0
       use_ce: False
       use_focal: True
       use_contrastive: False
@@ -90,9 +90,9 @@ trainer:
     stop_split_at: 15000          # stop splitting at this step
     sh_degree: 3                  # sh degree for gaussians
     # enable/disable semantic influence
-    use_semantic_cull: True
-    use_semantic_split: True
-    use_semantic_dup: True
+    use_semantic_cull: False
+    use_semantic_split: False
+    use_semantic_dup: False
     # semantic importance construction
     semantic_inv_freq_eps: 1e-6
     semantic_normalize_inv_freq: True
